@@ -104,8 +104,8 @@ ticks_less (const struct list_elem *a_, const struct list_elem *b_,
   
   if (a->wakeup_ticks < b->wakeup_ticks)
 	return true;
-  // else if (a->wakeup_ticks == b->wakeup_ticks)
-    // return a->priority > b->priority;
+  else if (a->wakeup_ticks == b->wakeup_ticks)
+    return a->priority > b->priority;
   else
 	return false;
 }
@@ -123,7 +123,7 @@ timer_sleep (int64_t ticks)
   struct thread *t = thread_current ();
   t->wakeup_ticks = ticks + start;
   list_insert_ordered (&sleep_list, &t->elem, ticks_less, NULL);
-  // printf ("Ticks %lld: threads %d sleep, interval %lld, wakeup %lld, listsize %zu\n", start, t->tid, ticks, t->wakeup_ticks, list_size(&sleep_list));
+  // printf ("Ticks %lld: threads %d sleep, interval %lld, wakeup %lld, priority %d\n", start, t->tid, ticks, t->wakeup_ticks, t->priority);
   thread_block ();
   intr_set_level (old_level);
 }
@@ -214,7 +214,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 	if(t->wakeup_ticks <= ticks)
 	{
 	  list_remove(e);
-	  // printf("Ticks %lld: thread %d wake up, listsize %zu\n", ticks, t->tid, list_size(&sleep_list));
+	  // printf("Ticks %lld: thread %d wake up, priority %d\n", ticks, t->tid, t->priority);
 	  thread_unblock(t);
 	}
 	else
