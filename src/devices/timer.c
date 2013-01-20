@@ -103,11 +103,11 @@ ticks_less (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *b = list_entry (b_, struct thread, elem);
   
   if (a->wakeup_ticks < b->wakeup_ticks)
-	return true;
+    return true;
   else if (a->wakeup_ticks == b->wakeup_ticks)
     return a->priority > b->priority;
   else
-	return false;
+    return false;
 }
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
@@ -207,18 +207,18 @@ timer_interrupt (struct intr_frame *args UNUSED)
   while(!list_empty (&sleep_list))
   {
     struct list_elem *e = list_front(&sleep_list);
-	struct thread *t = list_entry(e, struct thread, elem);
-	ASSERT (t != NULL);
-	ASSERT (t->wakeup_ticks >= 0)
-	
-	if(t->wakeup_ticks <= ticks)
-	{
-	  list_remove(e);
-	  // printf("Ticks %lld: thread %d wake up, priority %d\n", ticks, t->tid, t->priority);
-	  thread_unblock(t);
-	}
-	else
-	  break;
+    struct thread *t = list_entry(e, struct thread, elem);
+    ASSERT (t != NULL);
+    ASSERT (t->wakeup_ticks >= 0)
+
+    if(t->wakeup_ticks <= ticks)
+    {
+      list_remove(e);
+      // printf("Ticks %lld: thread %d wake up, priority %d\n", ticks, t->tid, t->priority);
+      thread_unblock(t);
+    }
+    else
+      break;
   }
   thread_tick ();
 }

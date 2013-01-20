@@ -74,6 +74,10 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+static bool priority_compare (const struct list_elem *,
+                              const struct list_elem *,
+                              void *);
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -240,8 +244,10 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, priority_compare, NULL);
   t->status = THREAD_READY;
+  // printf("thread %d inserted\n", t->tid);
+  // thread_yield();
   intr_set_level (old_level);
 }
 
@@ -308,10 +314,10 @@ thread_yield (void)
   enum intr_level old_level;
   
   ASSERT (!intr_context ());
-
+  // printf("thread %d yield\n", cur->tid);
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, priority_compare, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -567,6 +573,7 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+  // printf("thread %d replaces %d\n", next->tid, cur->tid);
 }
 
 /* Returns a tid to use for a new thread. */
@@ -586,3 +593,15 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* Returns true if A has higher priority than B, false
+   otherwise. */
+static bool
+priority_compare (const struct list_elem *a_, const struct list_elem *b_,
+                  void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  return a->priority > b->priority;
+}
