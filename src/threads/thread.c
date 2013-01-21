@@ -323,7 +323,6 @@ thread_yield (void)
   enum intr_level old_level;
   
   ASSERT (!intr_context ());
-  // printf("thread %d yield\n", cur->tid);
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem, priority_compare, NULL);
@@ -582,7 +581,6 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
-  // printf("thread %d replaces %d\n", next->tid, cur->tid);
 }
 
 /* Returns a tid to use for a new thread. */
