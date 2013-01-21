@@ -599,7 +599,7 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 /* Returns true if A has higher priority than B, false
    otherwise. */
-static bool
+bool
 priority_compare (const struct list_elem *a_, const struct list_elem *b_,
                   void *aux UNUSED) 
 {
