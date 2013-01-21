@@ -103,6 +103,9 @@ struct thread
 	
 	/* Owned by devices/timer.c. */
 	int64_t wakeup_ticks;
+	
+	/* Semaphore waiter lists */
+	struct list sema_lists;
   };
 
 /* If false (default), use round-robin scheduler.

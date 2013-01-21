@@ -481,6 +481,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   t->wakeup_ticks = WAKEUP_INIT;
+  list_init (&t->sema_lists);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
