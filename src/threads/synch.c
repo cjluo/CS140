@@ -31,32 +31,40 @@
 #include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/malloc.h"
 
 /* Update the current waiter with higher priority */
 
 void waiter_update_priority(struct list *waiter_list, int priority)
 {
+  printf("now %d\n", priority);
   if (list_empty (waiter_list))
-    return;
+  {
+    printf("empty %d\n", priority);
+	return;
+  }
   struct list_elem *e;
   for (e = list_rbegin (waiter_list); e != list_rend(waiter_list);
        e = list_prev (e))
   {
     struct thread *t = list_entry (e, struct thread, elem);
     if(t->priority >= priority)
+    {
+	  printf("thread %d change priority: original %d, now %d\n", t->tid, t->priority, priority);
 	  return;
-	
-	t->priority = priority;
-	
-	struct list_elem *sema_e;
-	struct list *sema_lists = &(t->sema_lists);
-	for (sema_e = list_begin (sema_lists); sema_e != list_end (sema_lists);
+    }
+	// printf("thread %d change priority: original %d, now %d\n", t->tid, t->priority, priority);
+    t->priority = priority;
+    
+    struct list_elem *sema_e;
+    struct list *sema_lists = &(t->sema_lists);
+    for (sema_e = list_begin (sema_lists); sema_e != list_end (sema_lists);
          sema_e = list_next (sema_e))
     {
-	  struct semaphore *next_sema = list_entry (sema_e, struct semaphore,
-	                                            elem);
-	  waiter_update_priority (&next_sema->waiters, priority);
-	}
+      struct semaphore *next_sema = list_entry (sema_e, struct semaphore_node,
+                                                elem)->sema;
+      waiter_update_priority (&next_sema->waiters, priority);
+    }
   }
 }
 
@@ -97,9 +105,13 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
       waiter_update_priority(&sema->waiters, thread_current ()->priority);
-	  list_push_back (&sema->waiters, &thread_current ()->elem);
-	  list_push_back (&thread_current ()->sema_lists, &sema->elem);
-	  
+      list_push_back (&sema->waiters, &thread_current ()->elem);
+      
+      struct semaphore_node new_semaphore_node;
+      new_semaphore_node.sema = sema;
+      
+	  list_push_back (&thread_current ()->sema_lists, &new_semaphore_node.elem);
+      
       thread_block ();
     }
   sema->value--;
@@ -146,9 +158,20 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) 
   {
-    list_remove (&sema->elem);
-	thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+	struct thread *t = list_entry (list_pop_front (&sema->waiters),
+                                struct thread, elem);
+    struct list *sema_lists = &t->sema_lists;
+	struct list_elem *e;
+	for (e = list_begin (sema_lists); e != list_end (sema_lists);
+         e = list_next (e))
+	{
+	  struct semaphore_node *sema_node = list_entry(e, struct semaphore_node, elem);
+	  if(sema_node->sema == sema)
+	  {
+	    list_remove (e);
+	  }
+	}
+    thread_unblock (t);
   }
   sema->value++;
   intr_set_level (old_level);
