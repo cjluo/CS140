@@ -103,9 +103,6 @@ struct thread
 	
 	/* Owned by devices/timer.c. */
 	int64_t wakeup_ticks;
-	
-	/* Semaphore waiter lists */
-	struct list sema_lists;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -143,5 +140,9 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+static bool priority_compare (const struct list_elem *,
+                              const struct list_elem *,
+                              void *);
 
 #endif /* threads/thread.h */

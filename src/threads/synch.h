@@ -11,15 +11,6 @@ struct semaphore
     struct list waiters;        /* List of waiting threads. */
   };
 
-/* A semaphore* node */
-struct semaphore_node
-  {
-    struct semaphore *sema;
-	struct list_elem elem;
-  };
-
-void waiter_update_priority(struct list *, int);
-  
 void sema_init (struct semaphore *, unsigned value);
 void sema_down (struct semaphore *);
 bool sema_try_down (struct semaphore *);
