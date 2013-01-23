@@ -349,6 +349,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  thread_current ()->base_priority = new_priority;
 }
 
 /* Returns the current thread's priority. */
@@ -475,8 +476,11 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->base_priority = priority;
   t->magic = THREAD_MAGIC;
   t->wakeup_ticks = WAKEUP_INIT;
+  t->waiting_for = NULL;
+  list_init (&t->locks_list);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -577,6 +581,7 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
+  // printf("\trunning %d\n", next->tid);
 }
 
 /* Returns a tid to use for a new thread. */

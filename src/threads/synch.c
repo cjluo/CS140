@@ -178,6 +178,7 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
+  lock->highest_priority = PRI_MIN;
   sema_init (&lock->semaphore, 1);
 }
 
@@ -196,8 +197,36 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable ();
+  struct thread *t = thread_current ();
+  if(t->priority > lock->highest_priority)
+	lock->highest_priority = t->priority;
+  if (lock->holder != NULL)
+  {
+    /* lock is held by other thread */
+	t->waiting_for = lock->holder;
+	struct thread *waiting_for;
+    for (waiting_for = t->waiting_for; waiting_for != NULL; waiting_for = waiting_for->waiting_for)
+	{
+	  if (waiting_for->priority >= t->priority)
+	    break;
+	  waiting_for->priority = t->priority;
+	}
+  }
+
+  intr_set_level (old_level);
+  
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+  
+  old_level = intr_disable ();
+  ASSERT(t = thread_current ());
+  ASSERT(lock->holder == NULL);
+  lock->holder = t;
+  ASSERT(lock->holder == t);
+  // if(t->tid > 1) printf("A %d\n", t->tid);
+  list_push_back (&t->locks_list, &lock->elem);
+  intr_set_level (old_level);
+  
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -228,11 +257,32 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock) 
 {
+  // if(lock->holder->tid > 1) printf("R %d\n", lock->holder->tid);
+  
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+
   sema_up (&lock->semaphore);
+  
+  enum intr_level old_level = intr_disable ();
+  
+  struct thread *t = thread_current ();
+  ASSERT(!list_empty (&t->locks_list));
+  list_pop_back (&t->locks_list); //Which is wrong
+  if (!list_empty (&t->locks_list))
+  {
+    struct lock *next_lock = list_entry (list_back (&t->locks_list), 
+	                                     struct lock,
+									     elem);
+	ASSERT (next_lock != NULL);
+	if (t->base_priority < next_lock->highest_priority)
+	    t->priority = next_lock->highest_priority;
+  }
+  else
+    t->priority = t->base_priority;
+  intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
