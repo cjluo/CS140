@@ -365,7 +365,7 @@ thread_set_priority (int new_priority)
   t->base_priority = new_priority;
   t->priority = new_priority;
   if (t->waiting_for != NULL && t->waiting_for->highest_priority < new_priority)
-	lock_priority_rise(t->waiting_for, new_priority);
+    lock_priority_rise(t->waiting_for, new_priority);
   else
     thread_priority_fall(t, new_priority);
 

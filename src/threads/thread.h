@@ -88,7 +88,7 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-	int base_priority;
+    int base_priority;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
@@ -101,12 +101,12 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-	
-	/* Owned by devices/timer.c. */
-	int64_t wakeup_ticks;
-	
-	struct lock *waiting_for;
-	struct list locks_list;
+    
+    /* Owned by devices/timer.c. */
+    int64_t wakeup_ticks;
+    
+    struct lock *waiting_for;
+    struct list locks_list;
   };
 
 /* If false (default), use round-robin scheduler.
