@@ -32,6 +32,19 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+/* Returns true if A has higher priority than B, false
+   otherwise. */
+static bool
+lock_priority_less (const struct list_elem *a_,
+                       const struct list_elem *b_,
+					   void *aux UNUSED) 
+{
+  const struct lock *a = list_entry (a_, struct lock, elem);
+  const struct lock *b = list_entry (b_, struct lock, elem);
+  
+  return a->highest_priority < b->highest_priority;
+}
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -218,14 +231,12 @@ lock_acquire (struct lock *lock)
   
   sema_down (&lock->semaphore);
   
-  old_level = intr_disable ();
-  ASSERT(t = thread_current ());
+  ASSERT(t == thread_current ());
   ASSERT(lock->holder == NULL);
   lock->holder = t;
   ASSERT(lock->holder == t);
   // if(t->tid > 1) printf("A %d\n", t->tid);
   list_push_back (&t->locks_list, &lock->elem);
-  intr_set_level (old_level);
   
 }
 
@@ -263,19 +274,19 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
-
-  sema_up (&lock->semaphore);
-  
   enum intr_level old_level = intr_disable ();
+  sema_up (&lock->semaphore);
   
   struct thread *t = thread_current ();
   ASSERT(!list_empty (&t->locks_list));
-  list_pop_back (&t->locks_list); //Which is wrong
+  list_remove (&lock->elem);
+  
   if (!list_empty (&t->locks_list))
   {
-    struct lock *next_lock = list_entry (list_back (&t->locks_list), 
-	                                     struct lock,
-									     elem);
+    struct list_elem *next_lock_elem = list_max (&t->locks_list, 
+	                                             lock_priority_less,
+												 NULL);
+	struct lock *next_lock = list_entry (next_lock_elem, struct lock, elem);
 	ASSERT (next_lock != NULL);
 	if (t->base_priority < next_lock->highest_priority)
 	    t->priority = next_lock->highest_priority;
