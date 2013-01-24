@@ -244,8 +244,8 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
 
   struct thread *cur = thread_current ();
-  struct thread *next = list_entry (list_front (&ready_list), struct thread, elem);
-
+  struct thread *next = list_entry (list_front (&ready_list), struct thread, elem); 
+  
   if ((cur->priority < next->priority) && (cur!= idle_thread))
   {
     if (intr_context ())
