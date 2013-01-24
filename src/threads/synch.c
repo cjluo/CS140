@@ -219,14 +219,8 @@ lock_acquire (struct lock *lock)
   if (lock->holder != NULL)
   {
     /* lock is held by other thread */
-	t->waiting_for = lock->holder;
-	struct thread *waiting_for;
-    for (waiting_for = t->waiting_for; waiting_for != NULL; waiting_for = waiting_for->waiting_for)
-	{
-	  if (waiting_for->priority >= t->priority)
-	    break;
-	  waiting_for->priority = t->priority;
-	}
+	t->waiting_for = lock;
+    lock_priority_rise (lock, t->priority);
   }
 
   intr_set_level (old_level);
@@ -287,14 +281,12 @@ lock_release (struct lock *lock)
 	struct lock *next_lock = list_entry (next_lock_elem, struct lock, elem);
 	ASSERT (next_lock != NULL);
 	if (t->base_priority < next_lock->highest_priority)
-	    t->priority = next_lock->highest_priority;
+	  t->priority = next_lock->highest_priority;
   }
   else
     t->priority = t->base_priority;  
   
   sema_up (&lock->semaphore);
-  
-
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -306,6 +298,19 @@ lock_held_by_current_thread (const struct lock *lock)
   ASSERT (lock != NULL);
 
   return lock->holder == thread_current ();
+}
+
+void
+lock_priority_rise (struct lock *lock, int priority)
+{
+  struct lock *waiting_for;
+  for (waiting_for = lock; waiting_for != NULL && waiting_for->holder != NULL; waiting_for = waiting_for->holder->waiting_for)
+  {
+	if (waiting_for->holder->priority >= priority)
+	  break;
+	waiting_for->holder->priority = priority;
+    waiting_for->highest_priority = priority;
+  }
 }
 
 /* One semaphore in a list. */

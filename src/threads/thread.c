@@ -74,6 +74,8 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+static void yield_if_lower_priority (void);
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -243,6 +245,16 @@ thread_unblock (struct thread *t)
   list_insert_ordered (&ready_list, &t->elem, priority_compare, NULL);
   t->status = THREAD_READY;
 
+  yield_if_lower_priority();
+  intr_set_level (old_level);
+}
+
+static void
+yield_if_lower_priority (void)
+{
+  if (list_empty (&ready_list))
+    return;
+
   struct thread *cur = thread_current ();
   struct thread *next = list_entry (list_front (&ready_list), struct thread, elem); 
   
@@ -253,7 +265,6 @@ thread_unblock (struct thread *t)
     else
       thread_yield ();
   }
-  intr_set_level (old_level);
 }
 
 /* Returns the name of the running thread. */
@@ -348,8 +359,13 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  int old_priority = thread_current ()->priority;
+  
   thread_current ()->priority = new_priority;
   thread_current ()->base_priority = new_priority;
+  
+  if(old_priority > new_priority)
+    yield_if_lower_priority();
 }
 
 /* Returns the current thread's priority. */

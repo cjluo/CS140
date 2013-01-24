@@ -105,7 +105,7 @@ struct thread
 	/* Owned by devices/timer.c. */
 	int64_t wakeup_ticks;
 	
-	struct thread *waiting_for;
+	struct lock *waiting_for;
 	struct list locks_list;
   };
 
