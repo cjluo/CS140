@@ -234,6 +234,8 @@ lock_acquire (struct lock *lock)
   ASSERT(t == thread_current ());
   ASSERT(lock->holder == NULL);
   lock->holder = t;
+  if (lock->highest_priority < t->priority)
+    lock->highest_priority = t->priority;
   ASSERT(lock->holder == t);
   list_push_back (&t->locks_list, &lock->elem);
 }
@@ -256,7 +258,7 @@ lock_try_acquire (struct lock *lock)
   if (success)
   {
     lock->holder = thread_current ();
-	list_push_back (&t->locks_list, &lock->elem);
+	list_push_back (&lock->holder->locks_list, &lock->elem);
   }
   return success;
 }
