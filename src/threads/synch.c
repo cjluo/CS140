@@ -38,8 +38,8 @@ struct semaphore_elem;
    otherwise. */
 static bool
 lock_priority_less (const struct list_elem *a_,
-                       const struct list_elem *b_,
-                       void *aux UNUSED) 
+                    const struct list_elem *b_,
+                    void *aux UNUSED) 
 {
   const struct lock *a = list_entry (a_, struct lock, elem);
   const struct lock *b = list_entry (b_, struct lock, elem);
@@ -254,7 +254,10 @@ lock_try_acquire (struct lock *lock)
 
   success = sema_try_down (&lock->semaphore);
   if (success)
+  {
     lock->holder = thread_current ();
+	list_push_back (&t->locks_list, &lock->elem);
+  }
   return success;
 }
 
@@ -269,6 +272,7 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable ();
   lock->holder = NULL;
 
   struct thread *t = thread_current ();
@@ -276,7 +280,8 @@ lock_release (struct lock *lock)
   list_remove (&lock->elem);
   
   thread_priority_fall (t, t->base_priority);
-  
+  lock->highest_priority = PRI_MIN;
+  intr_set_level (old_level);
   sema_up (&lock->semaphore);
 }
 
