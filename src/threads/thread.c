@@ -58,8 +58,7 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
-static int load_avg;
-static int ready_thread;
+static int32_t load_avg;
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -80,6 +79,14 @@ static tid_t allocate_tid (void);
 
 static void yield_if_lower_priority (void);
 static void priority_update (struct thread *);
+
+static int f_to_int (int32_t);
+static int32_t int_to_f (int);
+static int32_t f_add (int32_t, int32_t);
+static int32_t f_sub (int32_t, int32_t);
+static int32_t f_mul (int32_t, int32_t);
+static int32_t f_div (int32_t, int32_t);
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -103,7 +110,6 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   load_avg = 0;
-  ready_thread = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -167,15 +173,26 @@ thread_tick (void)
     if (timer_ticks () % TIMER_FREQ == 0)
     {
       /* 1 second */
+	  int32_t ratio_up = f_mul (int_to_f (2), load_avg);
+	  int32_t ratio_down = f_add (ratio_up, int_to_f (1));
+	  int32_t ratio = f_div (ratio_up, ratio_down);
+	  
 	  for (e = list_begin (&all_list); e != list_end (&all_list);
 	       e = list_next (e))
 	  {
-	    t_each = list_entry (e, struct thread, allelem);
-	    t_each->recent_cpu =
-	      (2 * load_avg) / (2 * load_avg + 1) * t_each->recent_cpu + t_each->nice;
+	    
+		t_each = list_entry (e, struct thread, allelem);
+		t_each->recent_cpu = f_add (f_mul (ratio, t_each->recent_cpu),
+		                            int_to_f (t_each->nice));
 	  }
-	  load_avg = 
-	    (59 / 60) * load_avg + (1 / 60) * (list_size (&ready_list) + 1);
+	  
+	  int32_t ratio_59_60 = f_div (int_to_f (59), int_to_f (60));
+	  int32_t ratio_1_60 = f_div (int_to_f (1), int_to_f (60));
+	  
+	  load_avg = f_add (f_mul (ratio_59_60, load_avg),
+                        f_mul (ratio_1_60, int_to_f (list_size (
+						  &ready_list) + 1)));
+	  printf("%d %d\n", (int)list_size (&ready_list), thread_get_load_avg());
     }
   }
   
@@ -422,7 +439,7 @@ thread_set_priority (int new_priority)
 void
 priority_update (struct thread *t)
 {
-  t->priority = PRI_MAX - (t->recent_cpu / 4) - (t->nice * 2);
+  t->priority = PRI_MAX - f_to_int (f_div (t->recent_cpu, int_to_f(4))) - (t->nice * 2);
 }
 
 /* Returns the current thread's priority. */
@@ -437,7 +454,7 @@ void
 thread_set_nice (int nice) 
 {
   thread_current ()->nice = nice;
-  // priority_update ();
+  priority_update (thread_current ());
 }
 
 /* Returns the current thread's nice value. */
@@ -451,14 +468,14 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  return load_avg * 100;
+  return f_to_int (f_mul (load_avg, int_to_f (100)));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  return thread_current ()->recent_cpu * 100;
+  return f_to_int (f_mul (thread_current ()->recent_cpu, int_to_f (100)));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -697,4 +714,41 @@ priority_compare (const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *b = list_entry (b_, struct thread, elem);
   
   return a->priority > b->priority;
+}
+
+#define F (1<<14)
+static int
+f_to_int (int32_t x)
+{
+  return (int)(x/F);
+}
+
+static int32_t
+int_to_f (int n)
+{
+  return (int32_t)(n*F);
+}
+
+static int32_t
+f_add (int32_t x, int32_t y)
+{
+  return x + y;
+}
+
+static int32_t
+f_sub (int32_t x, int32_t y)
+{
+  return x - y;
+}
+
+static int32_t
+f_mul (int32_t x, int32_t y)
+{
+  return (int32_t)(((int64_t) x) * y / F);
+}
+
+static int32_t
+f_div (int32_t x, int32_t y)
+{
+  return (int32_t)(((int64_t) x) * F / y);
 }

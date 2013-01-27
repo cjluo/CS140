@@ -90,7 +90,7 @@ struct thread
     int priority;                       /* Priority. */
     int base_priority;
 	int nice;
-	int recent_cpu;
+	int32_t recent_cpu;
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
