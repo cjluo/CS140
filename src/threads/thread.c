@@ -154,6 +154,15 @@ thread_tick (void)
   {
     struct thread *t_each;
     struct list_elem *e;
+    if (timer_ticks () % TIME_SLICE == 0)
+    {
+      for (e = list_begin (&all_list); e != list_end (&all_list);
+  	       e = list_next (e))
+	  {
+	    t_each = list_entry (e, struct thread, allelem);
+	    priority_update (t_each);
+	  }
+    }
   
     if (timer_ticks () % TIMER_FREQ == 0)
     {
@@ -167,17 +176,6 @@ thread_tick (void)
 	  }
 	  load_avg = 
 	    (59 / 60) * load_avg + (1 / 60) * (list_size (&ready_list) + 1);
-    }
-	
-    if (timer_ticks () % TIME_SLICE == 0)
-    {
-      for (e = list_begin (&all_list); e != list_end (&all_list);
-  	       e = list_next (e))
-	  {
-	    t_each = list_entry (e, struct thread, allelem);
-	    priority_update (t_each);
-		barrier();
-	  }
     }
   }
   
@@ -298,7 +296,8 @@ yield_if_lower_priority (void)
     return;
 
   struct thread *cur = thread_current ();
-  struct thread *next = list_entry (list_front (&ready_list), struct thread, elem); 
+  struct thread *next = list_entry (
+    list_min (&ready_list, priority_compare, NULL), struct thread, elem);
   
   if ((cur->priority < next->priority) && (cur!= idle_thread))
   {
@@ -374,7 +373,9 @@ thread_yield (void)
   ASSERT (!intr_context ());
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered (&ready_list, &cur->elem, priority_compare, NULL);
+  {
+	list_push_back (&ready_list, &cur->elem);	  
+  }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -591,7 +592,11 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+  {
+    struct list_elem* e = list_min (&ready_list, priority_compare, NULL);
+	list_remove(e);
+	return list_entry (e, struct thread, elem);
+  }
 }
 
 /* Completes a thread switch by activating the new thread's page
