@@ -153,22 +153,13 @@ thread_tick (void)
   {
     kernel_ticks++;
 	if (thread_mlfqs)
-	  t -> recent_cpu++;
+	  t -> recent_cpu += int_to_f (1);
   }
 
   if (thread_mlfqs)
   {
     struct thread *t_each;
     struct list_elem *e;
-    if (timer_ticks () % TIME_SLICE == 0)
-    {
-      for (e = list_begin (&all_list); e != list_end (&all_list);
-  	       e = list_next (e))
-	  {
-	    t_each = list_entry (e, struct thread, allelem);
-	    priority_update (t_each);
-	  }
-    }
   
     if (timer_ticks () % TIMER_FREQ == 0)
     {
@@ -196,11 +187,21 @@ thread_tick (void)
 	  // if (t != idle_thread)
 	    // printf("%d %d %d\n", ratio_1_60, ready_threads, load_avg);
     }
+	
+	if (timer_ticks () % TIME_SLICE == 0)
+    {
+      for (e = list_begin (&all_list); e != list_end (&all_list);
+  	       e = list_next (e))
+	  {
+	    t_each = list_entry (e, struct thread, allelem);
+	    priority_update (t_each);
+	  }
+    }
   }
   
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
-    intr_yield_on_return ();
+    yield_if_lower_priority ();
 }
 
 /* Prints thread statistics. */
@@ -301,7 +302,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, priority_compare, NULL);
+  list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
 
   yield_if_lower_priority();
@@ -318,7 +319,7 @@ yield_if_lower_priority (void)
   struct thread *next = list_entry (
     list_min (&ready_list, priority_compare, NULL), struct thread, elem);
   
-  if ((cur->priority < next->priority) && (cur!= idle_thread))
+  if ((cur->priority <= next->priority) && (cur!= idle_thread))
   {
     if (intr_context ())
       intr_yield_on_return ();
@@ -442,6 +443,8 @@ void
 priority_update (struct thread *t)
 {
   t->priority = PRI_MAX - f_to_int (f_div (t->recent_cpu, int_to_f(4))) - (t->nice * 2);
+  t->priority = (t->priority > PRI_MAX) ? PRI_MAX : t->priority;
+  t->priority = (t->priority < PRI_MIN) ? PRI_MIN : t->priority;
 }
 
 /* Returns the current thread's priority. */
@@ -457,6 +460,7 @@ thread_set_nice (int nice)
 {
   thread_current ()->nice = nice;
   priority_update (thread_current ());
+  yield_if_lower_priority ();
 }
 
 /* Returns the current thread's nice value. */
