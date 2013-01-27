@@ -189,10 +189,12 @@ thread_tick (void)
 	  int32_t ratio_59_60 = f_div (int_to_f (59), int_to_f (60));
 	  int32_t ratio_1_60 = f_div (int_to_f (1), int_to_f (60));
 	  
+	  int ready_threads = list_size (&ready_list) + ((t == idle_thread) ? 0 : 1);
+	  
 	  load_avg = f_add (f_mul (ratio_59_60, load_avg),
-                        f_mul (ratio_1_60, int_to_f (list_size (
-						  &ready_list) + 1)));
-	  printf("%d %d\n", (int)list_size (&ready_list), thread_get_load_avg());
+                        f_mul (ratio_1_60, int_to_f (ready_threads)));
+	  // if (t != idle_thread)
+	    // printf("%d %d %d\n", ratio_1_60, ready_threads, load_avg);
     }
   }
   
@@ -720,7 +722,10 @@ priority_compare (const struct list_elem *a_, const struct list_elem *b_,
 static int
 f_to_int (int32_t x)
 {
-  return (int)(x/F);
+  if (x >= 0)
+    return (int)((x + F/2)/F);
+  else
+    return (int)((x - F/2)/F);
 }
 
 static int32_t
