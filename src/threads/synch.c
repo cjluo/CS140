@@ -197,7 +197,8 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
-  lock->highest_priority = PRI_MIN;
+  if (!thread_mlfqs)
+    lock->highest_priority = PRI_MIN;
   sema_init (&lock->semaphore, 1);
 }
 
@@ -215,29 +216,35 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-
-  enum intr_level old_level = intr_disable ();
+  
   struct thread *t = thread_current ();
-  if(t->priority > lock->highest_priority)
-    lock->highest_priority = t->priority;
-  if (lock->holder != NULL)
+  if (!thread_mlfqs)
   {
-    /* lock is held by other thread */
-    t->waiting_for = lock;
-    lock_priority_rise (lock, t->priority);
+    enum intr_level old_level = intr_disable ();  
+    if(t->priority > lock->highest_priority)
+      lock->highest_priority = t->priority;
+    if (lock->holder != NULL)
+    {
+      /* lock is held by other thread */
+      t->waiting_for = lock;
+      lock_priority_rise (lock, t->priority);
+    }
+    intr_set_level (old_level);
   }
-
-  intr_set_level (old_level);
   
   sema_down (&lock->semaphore);
   
   ASSERT(t == thread_current ());
   ASSERT(lock->holder == NULL);
   lock->holder = t;
-  if (lock->highest_priority < t->priority)
-    lock->highest_priority = t->priority;
-  ASSERT(lock->holder == t);
-  list_push_back (&t->locks_list, &lock->elem);
+
+  if (!thread_mlfqs)
+  {  
+    if (lock->highest_priority < t->priority)
+      lock->highest_priority = t->priority;
+    ASSERT(lock->holder == t);
+    list_push_back (&t->locks_list, &lock->elem);
+  }
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -258,7 +265,8 @@ lock_try_acquire (struct lock *lock)
   if (success)
   {
     lock->holder = thread_current ();
-	list_push_back (&lock->holder->locks_list, &lock->elem);
+	if (!thread_mlfqs)
+      list_push_back (&lock->holder->locks_list, &lock->elem);
   }
   return success;
 }
@@ -274,16 +282,21 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  enum intr_level old_level = intr_disable ();
-  lock->holder = NULL;
+  if (!thread_mlfqs)
+  {
+    enum intr_level old_level = intr_disable ();
+    lock->holder = NULL;
 
-  struct thread *t = thread_current ();
-  ASSERT(!list_empty (&t->locks_list));
-  list_remove (&lock->elem);
+    struct thread *t = thread_current ();
+    ASSERT(!list_empty (&t->locks_list));
+    list_remove (&lock->elem);
   
-  thread_priority_fall (t, t->base_priority);
-  lock->highest_priority = PRI_MIN;
-  intr_set_level (old_level);
+    thread_priority_fall (t, t->base_priority);
+    lock->highest_priority = PRI_MIN;
+    intr_set_level (old_level);
+  }
+  else
+    lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
 
