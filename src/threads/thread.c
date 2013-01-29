@@ -152,56 +152,68 @@ thread_tick (void)
   else
   {
     kernel_ticks++;
-	if (thread_mlfqs)
-	  t -> recent_cpu += int_to_f (1);
+    if (thread_mlfqs)
+    t -> recent_cpu += int_to_f (1);
   }
 
   if (thread_mlfqs)
   {
     struct thread *t_each;
     struct list_elem *e;
+
   
+    if (timer_ticks () % TIME_SLICE == 0)
+    {
+
+      //printf("##List size: %d %d\n", list_size(&all_list), list_size(&ready_list));
+      for (e = list_begin (&all_list); e != list_end (&all_list);
+             e = list_next (e))
+      {
+        t_each = list_entry (e, struct thread, allelem);
+        priority_update (t_each);
+      }
+
+    }
+ 
     if (timer_ticks () % TIMER_FREQ == 0)
     {
       /* 1 second */
-	  int32_t ratio_up = f_mul (int_to_f (2), load_avg);
-	  int32_t ratio_down = f_add (ratio_up, int_to_f (1));
-	  int32_t ratio = f_div (ratio_up, ratio_down);
-	  
-	  for (e = list_begin (&all_list); e != list_end (&all_list);
-	       e = list_next (e))
-	  {
-	    
-		t_each = list_entry (e, struct thread, allelem);
-		t_each->recent_cpu = f_add (f_mul (ratio, t_each->recent_cpu),
-		                            int_to_f (t_each->nice));
-	  }
-	  
-	  int32_t ratio_59_60 = f_div (int_to_f (59), int_to_f (60));
-	  int32_t ratio_1_60 = f_div (int_to_f (1), int_to_f (60));
-	  
-	  int ready_threads = list_size (&ready_list) + ((t == idle_thread) ? 0 : 1);
-	  
-	  load_avg = f_add (f_mul (ratio_59_60, load_avg),
-                        f_mul (ratio_1_60, int_to_f (ready_threads)));
-	  // if (t != idle_thread)
-	    // printf("%d %d %d\n", ratio_1_60, ready_threads, load_avg);
-    }
-	
-	if (timer_ticks () % TIME_SLICE == 0)
+    int32_t ratio_up = f_mul (int_to_f (2), load_avg);
+    int32_t ratio_down = f_add (ratio_up, int_to_f (1));
+    int32_t ratio = f_div (ratio_up, ratio_down);
+    
+    for (e = list_begin (&all_list); e != list_end (&all_list);
+         e = list_next (e))
     {
-      for (e = list_begin (&all_list); e != list_end (&all_list);
-  	       e = list_next (e))
-	  {
-	    t_each = list_entry (e, struct thread, allelem);
-	    priority_update (t_each);
-	  }
+      
+    t_each = list_entry (e, struct thread, allelem);
+    t_each->recent_cpu = f_add (f_mul (ratio, t_each->recent_cpu),
+                                int_to_f (t_each->nice));
     }
+    
+    int32_t ratio_59_60 = f_div (int_to_f (59), int_to_f (60));
+    int32_t ratio_1_60 = f_div (int_to_f (1), int_to_f (60));
+    
+    int ready_threads = list_size (&ready_list) + ((t == idle_thread) ? 0 : 1);
+    
+    load_avg = f_add (f_mul (ratio_59_60, load_avg),
+                        f_mul (ratio_1_60, int_to_f (ready_threads)));
+    // if (t != idle_thread)
+      // printf("%d %d %d\n", ratio_1_60, ready_threads, load_avg);
+    }
+
+
   }
-  
+
+
+    
   /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
-    yield_if_lower_priority ();
+  if (++thread_ticks >= TIME_SLICE){       
+   //yield_if_lower_priority ();
+    intr_yield_on_return();
+    //printf("##TicksNice: %d\n", t->nice);
+
+  }
 }
 
 /* Prints thread statistics. */
@@ -317,7 +329,7 @@ yield_if_lower_priority (void)
 
   struct thread *cur = thread_current ();
   struct thread *next = list_entry (
-    list_min (&ready_list, priority_compare, NULL), struct thread, elem);
+        list_min (&ready_list, priority_compare, NULL), struct thread, elem);
   
   if ((cur->priority <= next->priority) && (cur!= idle_thread))
   {
@@ -394,7 +406,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread) 
   {
-	list_push_back (&ready_list, &cur->elem);	  
+  list_push_back (&ready_list, &cur->elem);    
   }
   cur->status = THREAD_READY;
   schedule ();
@@ -443,8 +455,8 @@ void
 priority_update (struct thread *t)
 {
   t->priority = PRI_MAX - f_to_int (f_div (t->recent_cpu, int_to_f(4))) - (t->nice * 2);
-  t->priority = (t->priority > PRI_MAX) ? PRI_MAX : t->priority;
-  t->priority = (t->priority < PRI_MIN) ? PRI_MIN : t->priority;
+  if(t->priority > PRI_MAX) t->priority = PRI_MAX;
+  if(t->priority < PRI_MIN) t->priority = PRI_MIN;
 }
 
 /* Returns the current thread's priority. */
@@ -458,9 +470,10 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice) 
 {
+  //printf("###: Set nice %d\n", nice);
   thread_current ()->nice = nice;
-  priority_update (thread_current ());
-  yield_if_lower_priority ();
+  //priority_update (thread_current ());
+  //yield_if_lower_priority ();
 }
 
 /* Returns the current thread's nice value. */
@@ -573,13 +586,13 @@ init_thread (struct thread *t, const char *name, int priority)
   {
     t->priority = priority;
     t->base_priority = priority;
-	list_init (&t->locks_list);
+  list_init (&t->locks_list);
   }
   else
   {
     t->nice = 0;
     t->priority = 0;
-	t->recent_cpu = 0;
+    t->recent_cpu = 0;
   }
   t->magic = THREAD_MAGIC;
   t->wakeup_ticks = WAKEUP_INIT;
@@ -617,8 +630,8 @@ next_thread_to_run (void)
   else
   {
     struct list_elem* e = list_min (&ready_list, priority_compare, NULL);
-	list_remove(e);
-	return list_entry (e, struct thread, elem);
+    list_remove(e);
+  return list_entry (e, struct thread, elem);
   }
 }
 
@@ -761,3 +774,4 @@ f_div (int32_t x, int32_t y)
 {
   return (int32_t)(((int64_t) x) * F / y);
 }
+
