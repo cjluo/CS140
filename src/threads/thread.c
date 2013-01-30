@@ -77,15 +77,15 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-static void yield_if_lower_priority (void);
-static void priority_update (struct thread *);
+static inline void thread_judge_yield (void);
+static inline void priority_update (struct thread *);
 
 static int f_to_int (int32_t);
-static int32_t int_to_f (int);
-static int32_t f_add (int32_t, int32_t);
-static int32_t f_sub (int32_t, int32_t);
-static int32_t f_mul (int32_t, int32_t);
-static int32_t f_div (int32_t, int32_t);
+static inline int32_t int_to_f (int);
+static inline int32_t f_add (int32_t, int32_t);
+static inline int32_t f_sub (int32_t, int32_t);
+static inline int32_t f_mul (int32_t, int32_t);
+static inline int32_t f_div (int32_t, int32_t);
 
 
 /* Initializes the threading system by transforming the code
@@ -160,8 +160,20 @@ thread_tick (void)
   {
     struct thread *t_each;
     struct list_elem *e;
-  
-    if (timer_ticks () % TIMER_FREQ == 0)
+	
+	if (timer_ticks () % TIME_SLICE == 0)
+    {
+      for (e = list_begin (&ready_list); e != list_end (&ready_list);
+  	       e = list_next (e))
+	  {
+	    t_each = list_entry (e, struct thread, elem);
+	    priority_update (t_each);
+	  }
+	  
+	  priority_update (t);
+    }
+	
+	if (timer_ticks () % TIMER_FREQ == 0)
     {
       /* 1 second */
 	  int32_t ratio_up = f_mul (int_to_f (2), load_avg);
@@ -170,8 +182,7 @@ thread_tick (void)
 	  
 	  for (e = list_begin (&all_list); e != list_end (&all_list);
 	       e = list_next (e))
-	  {
-	    
+	  {	    
 		t_each = list_entry (e, struct thread, allelem);
 		t_each->recent_cpu = f_add (f_mul (ratio, t_each->recent_cpu),
 		                            int_to_f (t_each->nice));
@@ -187,21 +198,11 @@ thread_tick (void)
 	  // if (t != idle_thread)
 	    // printf("%d %d %d\n", ratio_1_60, ready_threads, load_avg);
     }
-	
-	if (timer_ticks () % TIME_SLICE == 0)
-    {
-      for (e = list_begin (&all_list); e != list_end (&all_list);
-  	       e = list_next (e))
-	  {
-	    t_each = list_entry (e, struct thread, allelem);
-	    priority_update (t_each);
-	  }
-    }
   }
   
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
-    yield_if_lower_priority ();
+    intr_yield_on_return ();
 }
 
 /* Prints thread statistics. */
@@ -305,27 +306,17 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
 
-  yield_if_lower_priority();
+  thread_judge_yield();
   intr_set_level (old_level);
 }
 
-static void
-yield_if_lower_priority (void)
+static inline void
+thread_judge_yield (void)
 {
-  if (list_empty (&ready_list))
-    return;
-
-  struct thread *cur = thread_current ();
-  struct thread *next = list_entry (
-    list_min (&ready_list, priority_compare, NULL), struct thread, elem);
-  
-  if ((cur->priority <= next->priority) && (cur!= idle_thread))
-  {
-    if (intr_context ())
-      intr_yield_on_return ();
-    else
-      thread_yield ();
-  }
+  if (intr_context ())
+    intr_yield_on_return ();
+  else
+    thread_yield ();
 }
 
 /* Returns the name of the running thread. */
@@ -338,7 +329,7 @@ thread_name (void)
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
    See the big comment at the top of thread.h for details. */
-struct thread *
+inline struct thread *
 thread_current (void) 
 {
   struct thread *t = running_thread ();
@@ -435,11 +426,11 @@ thread_set_priority (int new_priority)
       thread_priority_fall(t, new_priority);
 
     if(old_priority > t->priority)
-      yield_if_lower_priority();
+      thread_judge_yield();
   }
 }
 
-void
+inline void
 priority_update (struct thread *t)
 {
   t->priority = PRI_MAX - f_to_int (f_div (t->recent_cpu, int_to_f(4))) - (t->nice * 2);
@@ -460,7 +451,7 @@ thread_set_nice (int nice)
 {
   thread_current ()->nice = nice;
   priority_update (thread_current ());
-  yield_if_lower_priority ();
+  thread_yield ();
 }
 
 /* Returns the current thread's nice value. */
@@ -500,7 +491,7 @@ idle (void *idle_started_ UNUSED)
   idle_thread = thread_current ();
   sema_up (idle_started);
 
-  for (;;) 
+  for (;;)
     {
       /* Let someone else run. */
       intr_disable ();
@@ -578,8 +569,8 @@ init_thread (struct thread *t, const char *name, int priority)
   else
   {
     t->nice = 0;
-    t->priority = 0;
 	t->recent_cpu = 0;
+	t->priority = PRI_MAX;
   }
   t->magic = THREAD_MAGIC;
   t->wakeup_ticks = WAKEUP_INIT;
@@ -732,31 +723,31 @@ f_to_int (int32_t x)
     return (int)((x - F/2)/F);
 }
 
-static int32_t
+static inline int32_t
 int_to_f (int n)
 {
   return (int32_t)(n*F);
 }
 
-static int32_t
+static inline int32_t
 f_add (int32_t x, int32_t y)
 {
   return x + y;
 }
 
-static int32_t
+static inline int32_t
 f_sub (int32_t x, int32_t y)
 {
   return x - y;
 }
 
-static int32_t
+static inline int32_t
 f_mul (int32_t x, int32_t y)
 {
   return (int32_t)(((int64_t) x) * y / F);
 }
 
-static int32_t
+static inline int32_t
 f_div (int32_t x, int32_t y)
 {
   return (int32_t)(((int64_t) x) * F / y);
