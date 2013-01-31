@@ -142,12 +142,12 @@ void thread_foreach (thread_action_func *, void *);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
-int thread_get_nice (void);
-void thread_set_nice (int);
-int thread_get_recent_cpu (void);
-int thread_get_load_avg (void);
+inline int thread_get_nice (void);
+inline void thread_set_nice (int);
+inline int thread_get_recent_cpu (void);
+inline int thread_get_load_avg (void);
 
-bool priority_compare (const struct list_elem *,
+inline bool priority_compare (const struct list_elem *,
                               const struct list_elem *,
                               void *);
 
