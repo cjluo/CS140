@@ -24,11 +24,17 @@ static int64_t ticks;
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
+/* A list for sleeping threads */
+static struct list sleep_list;
+
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
+
+static bool ticks_less (const struct list_elem *, const struct list_elem *,
+                        void *);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
@@ -37,6 +43,9 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  
+  /* Initialization of the sleep_list */
+  list_init(&sleep_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -84,16 +93,39 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+/* Returns true if value A is less than value B, false
+   otherwise. */
+static bool
+ticks_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry (a_, struct thread, elem);
+  const struct thread *b = list_entry (b_, struct thread, elem);
+  
+  if (a->wakeup_ticks < b->wakeup_ticks)
+    return true;
+  else if (a->wakeup_ticks == b->wakeup_ticks)
+    return a->priority > b->priority;
+  else
+    return false;
+}
+
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
+  if(ticks <= 0)
+    return;
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  enum intr_level old_level = intr_disable ();
+  int64_t start = timer_ticks ();
+  struct thread *t = thread_current ();
+  t->wakeup_ticks = ticks + start;
+  list_insert_ordered (&sleep_list, &t->elem, ticks_less, NULL);
+  // printf ("Ticks %lld: threads %d sleep, interval %lld, wakeup %lld, priority %d\n", start, t->tid, ticks, t->wakeup_ticks, t->priority);
+  thread_block ();
+  intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -171,6 +203,24 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  /* Wake up threads */
+  while(!list_empty (&sleep_list))
+  {
+    struct list_elem *e = list_front(&sleep_list);
+    struct thread *t = list_entry(e, struct thread, elem);
+    ASSERT (t != NULL);
+    ASSERT (t->wakeup_ticks >= 0)
+
+    // if ticks is enough for wakeup, remove the thread from sleeping
+    // and then unblock the thread 
+    if(t->wakeup_ticks <= ticks)
+    {
+      list_remove(e);
+      thread_unblock(t);
+    }
+    else
+      break;
+  }
   thread_tick ();
 }
 
