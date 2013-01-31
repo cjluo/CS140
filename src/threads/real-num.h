@@ -23,7 +23,7 @@ f_to_int (int32_t x)
 static inline int32_t
 int_to_f (int n)
 {
-  return (int32_t)(n*F);
+  return (int32_t)(n*(F));
 }
 
 static inline int32_t

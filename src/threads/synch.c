@@ -225,7 +225,7 @@ lock_acquire (struct lock *lock)
     // priority donation
     // 1
     enum intr_level old_level = intr_disable ();  
-    if(t->priority > lock->highest_priority)
+    if(lock->highest_priority < t->priority)
       lock->highest_priority = t->priority;
     if (lock->holder != NULL)
     {
@@ -245,8 +245,8 @@ lock_acquire (struct lock *lock)
   if (!thread_mlfqs)
   {  
      
-    if (lock->highest_priority < t->priority)
-      lock->highest_priority = t->priority;
+    if (lock->highest_priority < t->base_priority)
+      lock->highest_priority = t->base_priority;
     ASSERT(lock->holder == t);
     list_push_back (&t->locks_list, &lock->elem);
   }
