@@ -34,19 +34,6 @@
 
 struct semaphore_elem;
 
-/* Returns true if A has higher priority than B, false
-   otherwise. */
-static bool
-lock_priority_less (const struct list_elem *a_,
-                    const struct list_elem *b_,
-                    void *aux UNUSED) 
-{
-  const struct lock *a = list_entry (a_, struct lock, elem);
-  const struct lock *b = list_entry (b_, struct lock, elem);
-  
-  return a->highest_priority < b->highest_priority;
-}
-
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -198,8 +185,6 @@ lock_init (struct lock *lock)
   ASSERT (lock != NULL);
 
   lock->holder = NULL;
-  if (!thread_mlfqs)
-    lock->highest_priority = PRI_MIN;
   sema_init (&lock->semaphore, 1);
 }
 
@@ -225,8 +210,6 @@ lock_acquire (struct lock *lock)
     // priority donation
     // 1
     enum intr_level old_level = intr_disable ();  
-    if(lock->highest_priority < t->priority)
-      lock->highest_priority = t->priority;
     if (lock->holder != NULL)
     {
       /* lock is held by other thread */
@@ -244,9 +227,6 @@ lock_acquire (struct lock *lock)
 
   if (!thread_mlfqs)
   {  
-     
-    if (lock->highest_priority < t->base_priority)
-      lock->highest_priority = t->base_priority;
     ASSERT(lock->holder == t);
     list_push_back (&t->locks_list, &lock->elem);
   }
@@ -290,14 +270,13 @@ lock_release (struct lock *lock)
   if (!thread_mlfqs)
   {
     enum intr_level old_level = intr_disable ();
+    struct thread *t = lock->holder;
     lock->holder = NULL;
 
-    struct thread *t = thread_current ();
     ASSERT(!list_empty (&t->locks_list));
     list_remove (&lock->elem);
   
     thread_priority_rollback (t, t->base_priority);
-    lock->highest_priority = PRI_MIN;
     intr_set_level (old_level);
   }
   else
@@ -325,24 +304,36 @@ lock_priority_donate (struct lock *lock, int priority)
     if (waiting_lock->holder->priority >= priority)
       break;
     waiting_lock->holder->priority = priority;
-    waiting_lock->highest_priority = priority;
   }
 }
 
 void
 thread_priority_rollback (struct thread *thread, int priority)
-{
+{  
+  
   thread->priority = priority;
-  if (!list_empty (&thread->locks_list))
+  struct list_elem *next_lock_elem;
+  for (next_lock_elem = list_begin (&thread->locks_list);
+       next_lock_elem != list_end (&thread->locks_list);
+	   next_lock_elem = list_next(next_lock_elem))
   {
-    struct list_elem *next_lock_elem = list_max (&thread->locks_list, 
-                                                 lock_priority_less,
-                                                 NULL);
+
     struct lock *next_lock = list_entry (next_lock_elem, struct lock, elem);
-    if (priority < next_lock->highest_priority)
-      thread->priority = next_lock->highest_priority;
+	int next_priority = lock_highest_priority (next_lock);
+    if (priority < next_priority)
+      thread->priority = next_priority;
   }
-   
+  if (thread->waiting_lock != NULL && thread->waiting_lock->holder != NULL)
+    thread_priority_rollback (thread->waiting_lock->holder, thread->priority);
+}
+
+int
+lock_highest_priority (struct lock *lock)
+{
+  struct list *l = &lock->semaphore.waiters;
+  struct list_elem *e = list_min(l, priority_compare, NULL);
+  struct thread *t = list_entry (e, struct thread, elem);
+  return t->priority;
 }
 
 /* One semaphore in a list. */

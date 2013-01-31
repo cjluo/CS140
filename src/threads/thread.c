@@ -431,17 +431,21 @@ thread_set_priority (int new_priority)
 {
   if (!thread_mlfqs)
   {
-    struct thread *t = thread_current ();
-  
+    enum intr_level old_level = intr_disable ();
+	
+	struct thread *t = thread_current ();
     int old_priority = t->priority;
     t->base_priority = new_priority;
-    t->priority = new_priority;
-    if (t->waiting_lock != NULL && t->waiting_lock->highest_priority < new_priority)
-      lock_priority_donate(t->waiting_lock, new_priority);
-    else
-      thread_priority_rollback(t, new_priority);
-
-    if(old_priority > t->priority)
+	bool is_rising = new_priority >= old_priority;
+    t->priority = is_rising ? new_priority : old_priority;
+    if (is_rising  && t->waiting_lock != NULL && t->waiting_lock->holder != NULL)
+      lock_priority_donate (t->waiting_lock, new_priority);
+    else if (!is_rising)
+      thread_priority_rollback (t, new_priority);
+    
+	intr_set_level (old_level);
+	  
+    if (!is_rising)
       yield_if_lower_priority();
   }
 }
