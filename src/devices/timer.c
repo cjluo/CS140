@@ -211,10 +211,11 @@ timer_interrupt (struct intr_frame *args UNUSED)
     ASSERT (t != NULL);
     ASSERT (t->wakeup_ticks >= 0)
 
+    // if ticks is enough for wakeup, remove the thread from sleeping
+    // and then unblock the thread 
     if(t->wakeup_ticks <= ticks)
     {
       list_remove(e);
-      // printf("Ticks %lld: thread %d wake up, priority %d\n", ticks, t->tid, t->priority);
       thread_unblock(t);
     }
     else

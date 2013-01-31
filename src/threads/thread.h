@@ -107,7 +107,10 @@ struct thread
     /* Owned by devices/timer.c. */
     int64_t wakeup_ticks;
     
-    struct lock *waiting_for;
+    /* The lock which is needed by current thread; NULL if no looks needed */
+    struct lock *waiting_lock;
+
+    /* Locks that current thread is holding. */
     struct list locks_list;
   };
 
@@ -126,9 +129,9 @@ typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
 void thread_block (void);
-void      (struct thread *);
+void thread_unblock (struct thread *);
 
-inline struct thread *thread_current (void);
+struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
@@ -142,12 +145,12 @@ void thread_foreach (thread_action_func *, void *);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
-inline int thread_get_nice (void);
-inline void thread_set_nice (int);
-inline int thread_get_recent_cpu (void);
-inline int thread_get_load_avg (void);
+int thread_get_nice (void);
+void thread_set_nice (int);
+int thread_get_recent_cpu (void);
+int thread_get_load_avg (void);
 
-inline bool priority_compare (const struct list_elem *,
+bool priority_compare (const struct list_elem *,
                               const struct list_elem *,
                               void *);
 
