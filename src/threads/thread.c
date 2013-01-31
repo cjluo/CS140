@@ -320,6 +320,9 @@ thread_unblock (struct thread *t)
   intr_set_level (old_level);
 }
 
+/* 
+   If the priority of the next ready thread is higher than the current thread,
+   the current thread yields CPU */
 static void
 yield_if_lower_priority (void)
 {
@@ -450,6 +453,7 @@ thread_set_priority (int new_priority)
   }
 }
 
+/* update the caller thread's priority and return the updated value. */
 int
 priority_update (struct thread *t, void *aux UNUSED)
 {

@@ -295,6 +295,7 @@ lock_held_by_current_thread (const struct lock *lock)
   return lock->holder == thread_current ();
 }
 
+/* function for priority donation */
 void
 lock_priority_donate (struct lock *lock, int priority)
 {
@@ -307,6 +308,7 @@ lock_priority_donate (struct lock *lock, int priority)
   }
 }
 
+/* Rollback thread priority to its highest waiter */
 void
 thread_priority_rollback (struct thread *thread, int priority)
 {  
@@ -327,6 +329,7 @@ thread_priority_rollback (struct thread *thread, int priority)
     thread_priority_rollback (thread->waiting_lock->holder, thread->priority);
 }
 
+/* return the highest priority of a lock's waiter */
 int
 lock_highest_priority (struct lock *lock)
 {
