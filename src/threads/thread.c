@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixed-point.h"
 #include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -84,13 +85,7 @@ static int priority_update (struct thread *, void *aux UNUSED);
 static void recent_cpu_update (struct thread *t, void *aux UNUSED);
 static void all_threads_update (void);
 
-static const int32_t F = 1<<14;
-static inline int f_to_int (int32_t);
-static inline int32_t int_to_f (int);
-static inline int32_t f_add (int32_t, int32_t);
-static inline int32_t f_sub (int32_t, int32_t);
-static inline int32_t f_mul (int32_t, int32_t);
-static inline int32_t f_div (int32_t, int32_t);
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -326,7 +321,8 @@ thread_unblock (struct thread *t)
 static void
 yield_if_lower_priority (void)
 {
-  if (next_thread != NULL && next_thread->priority < thread_current ()->priority)
+  if (next_thread != NULL && 
+      next_thread->priority < thread_current ()->priority)
   {
     thread_ticks = 0;
 	return;
@@ -422,10 +418,10 @@ thread_foreach (thread_action_func *func, void *aux)
 
   for (e = list_begin (&all_list); e != list_end (&all_list);
        e = list_next (e))
-    {
+  {
       struct thread *t = list_entry (e, struct thread, allelem);
       func (t, aux);
-    }
+  }
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -436,12 +432,13 @@ thread_set_priority (int new_priority)
   {
     enum intr_level old_level = intr_disable ();
 	
-	struct thread *t = thread_current ();
+    struct thread *t = thread_current ();
     int old_priority = t->priority;
     t->base_priority = new_priority;
-	bool is_rising = new_priority >= old_priority;
+    bool is_rising = new_priority >= old_priority;
     t->priority = is_rising ? new_priority : old_priority;
-    if (is_rising  && t->waiting_lock != NULL && t->waiting_lock->holder != NULL)
+    if (is_rising  && t->waiting_lock != NULL && 
+        t->waiting_lock->holder != NULL)
       lock_priority_donate (t->waiting_lock, new_priority);
     else if (!is_rising)
       thread_priority_rollback (t, new_priority);
@@ -769,53 +766,17 @@ all_threads_update (void)
 {
    
     // update load average
-    int ready_threads = ready_list_size + ((thread_current () == idle_thread) ? 0 : 1);
-    // load_avg = (59/60)*load_avg + (1/60)*ready_threads
+    int ready_threads = ready_list_size + 
+                        ((thread_current () == idle_thread) ? 0 : 1);
+ 
+    // update load_avg = (59/60)*load_avg + (1/60)*ready_threads
     load_avg = f_add (f_mul (f_div (int_to_f (59), int_to_f (60)), load_avg),
-                        f_mul (f_div (int_to_f (1), int_to_f (60)), int_to_f (ready_threads)));
+                        f_mul (f_div (int_to_f (1), int_to_f (60)), 
+                               int_to_f (ready_threads)));
 
     // update recent cpu
     thread_foreach (recent_cpu_update, NULL);
 
 }
 
-static inline int
-f_to_int (int32_t x)
-{
-  if (x >= 0)
-    return (int)((x + F/2)/F);
-  else
-    return (int)((x - F/2)/F);
-}
-
-static inline int32_t
-int_to_f (int n)
-{
-  return (int32_t)(n*(F));
-}
-
-static inline int32_t
-f_add (int32_t x, int32_t y)
-{
-  return x + y;
-}
-
-static inline int32_t
-f_sub (int32_t x, int32_t y)
-{
-  return x - y;
-}
-
-static inline int32_t
-f_mul (int32_t x, int32_t y)
-{
-  return (int32_t)(((int64_t) x) * y / F);
-}
-
-static inline int32_t
-f_div (int32_t x, int32_t y)
-{
-  ASSERT(y != 0)
-  return (int32_t)(((int64_t) x) * F / y);
-}
 
