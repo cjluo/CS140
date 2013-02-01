@@ -157,21 +157,22 @@ thread_tick (void)
 
   if (thread_mlfqs)
   {
-    // update recent_cpu every tick
+    /* Update recent_cpu every tick */
     t -> recent_cpu += int_to_f (1);
-
 
     struct thread *t_each;
     struct list_elem *e;
     
+    /* Every TIME_SLICE ticks */
     if (timer_ticks () % TIME_SLICE == 0)
     {
       int max_priority = 0;
       struct thread *max_thread = NULL;
       int new_priority;
-    
+      
+      /* Update priority and calculate the next thread to run */
       for (e = list_begin (&ready_list); e != list_end (&ready_list);
-             e = list_next (e))
+           e = list_next (e))
       {
         t_each = list_entry (e, struct thread, elem);
         new_priority = priority_update (t_each, NULL);
@@ -181,31 +182,19 @@ thread_tick (void)
           max_thread = t_each;
         }
       }
-      
       next_thread = max_thread;
-      
+      /* Update the priority of the running thread */
       priority_update (t, NULL);
     }
 
-/*
-    // update priority for each thread every TIME_SLICE
-    if (timer_ticks () % TIME_SLICE == 0)
-      thread_foreach (priority_update, NULL);
-*/
-
-
-
-    // update recent_cpu for each thread every TIMER_REQ
+    /* Update recent_cpu for each thread every TIMER_REQ */
     if (timer_ticks () % TIMER_FREQ == 0)
       all_threads_update();
-
   }
     
   /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE){       
-//    intr_yield_on_return();
-      yield_if_lower_priority();
-  }
+  if (++thread_ticks >= TIME_SLICE)    
+    yield_if_lower_priority();
 }
 
 /* Prints thread statistics. */
@@ -315,18 +304,15 @@ thread_unblock (struct thread *t)
   intr_set_level (old_level);
 }
 
-/* 
-   If the priority of the next ready thread is higher than the current thread,
+/* If the priority of the next ready thread is higher than the current thread,
    the current thread yields CPU */
 static void
 yield_if_lower_priority (void)
 {
   if (next_thread != NULL && 
       next_thread->priority < thread_current ()->priority)
-  {
-    thread_ticks = 0;
-	return;
-  }
+    return;
+
   if (intr_context ())
     intr_yield_on_return ();
   else
@@ -627,6 +613,7 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
+  /* if the next thread has already been calculated and cached */
   else if (next_thread != NULL && next_thread->status == THREAD_READY)
   {
     struct thread *result = next_thread;
@@ -711,7 +698,6 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
-  // printf("\trunning %d\n", next->tid);
 }
 
 /* Returns a tid to use for a new thread. */
@@ -754,8 +740,8 @@ recent_cpu_update(struct thread *t, void *aux UNUSED)
     int32_t ratio_down = f_add (ratio_up, int_to_f (1));
     int32_t ratio = f_div (ratio_up, ratio_down);
 
-    // update recent_cpu and then update recent_threads
-    // recent_cpu = (2*load_avg)/(2*load_avg+1) * recent_cpu + nice
+    /* update recent_cpu and then update recent_threads */
+    /* recent_cpu = (2*load_avg)/(2*load_avg+1) * recent_cpu + nice */
     t->recent_cpu = f_add (f_mul (ratio, t->recent_cpu),
                                 int_to_f (t->nice));
 }
@@ -765,16 +751,16 @@ static void
 all_threads_update (void)
 {
    
-    // update load average
+    /* update load average */
     int ready_threads = ready_list_size + 
                         ((thread_current () == idle_thread) ? 0 : 1);
  
-    // update load_avg = (59/60)*load_avg + (1/60)*ready_threads
+    /* update load_avg = (59/60)*load_avg + (1/60)*ready_threads */
     load_avg = f_add (f_mul (f_div (int_to_f (59), int_to_f (60)), load_avg),
                         f_mul (f_div (int_to_f (1), int_to_f (60)), 
                                int_to_f (ready_threads)));
 
-    // update recent cpu
+    /* update recent cpu */
     thread_foreach (recent_cpu_update, NULL);
 
 }

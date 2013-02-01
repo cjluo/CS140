@@ -1,5 +1,3 @@
-
-
 static const int32_t F = 1<<14;
 static inline int f_to_int (int32_t);
 static inline int32_t int_to_f (int);
@@ -21,7 +19,7 @@ f_to_int (int32_t x)
 static inline int32_t
 int_to_f (int n)
 {
-  return (int32_t)(n*(F));
+  return (int32_t)(n * (F));
 }
 
 static inline int32_t

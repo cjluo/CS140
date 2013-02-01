@@ -207,8 +207,7 @@ lock_acquire (struct lock *lock)
 
   if (!thread_mlfqs)
   {
-    // priority donation
-    // 1
+    /* priority donation */
     enum intr_level old_level = intr_disable ();  
     if (lock->holder != NULL)
     {
@@ -250,7 +249,7 @@ lock_try_acquire (struct lock *lock)
   if (success)
   {
     lock->holder = thread_current ();
-	if (!thread_mlfqs)
+    if (!thread_mlfqs)
       list_push_back (&lock->holder->locks_list, &lock->elem);
   }
   return success;
@@ -275,7 +274,7 @@ lock_release (struct lock *lock)
 
     ASSERT(!list_empty (&t->locks_list));
     list_remove (&lock->elem);
-  
+    /* rollback priority */
     thread_priority_rollback (t, t->base_priority);
     intr_set_level (old_level);
   }
@@ -300,6 +299,7 @@ void
 lock_priority_donate (struct lock *lock, int priority)
 {
   struct lock *waiting_lock;
+  /* donate the priority as a chain */
   for (waiting_lock = lock; 
        waiting_lock != NULL && waiting_lock->holder != NULL; 
        waiting_lock = waiting_lock->holder->waiting_lock)
@@ -319,14 +319,14 @@ thread_priority_rollback (struct thread *thread, int priority)
   struct list_elem *next_lock_elem;
   for (next_lock_elem = list_begin (&thread->locks_list);
        next_lock_elem != list_end (&thread->locks_list);
-	   next_lock_elem = list_next(next_lock_elem))
+       next_lock_elem = list_next(next_lock_elem))
   {
-
     struct lock *next_lock = list_entry (next_lock_elem, struct lock, elem);
-	int next_priority = lock_highest_priority (next_lock);
+    int next_priority = lock_highest_priority (next_lock);
     if (priority < next_priority)
       thread->priority = next_priority;
   }
+  /* Recursive roll back */
   if (thread->waiting_lock != NULL && thread->waiting_lock->holder != NULL)
     thread_priority_rollback (thread->waiting_lock->holder, thread->priority);
 }
