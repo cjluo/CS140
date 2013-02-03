@@ -5,6 +5,9 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "devices/shutdown.h"
+#include "threads/synch.h"
+
+#define FD_CONSOLE 1
 
 static void syscall_handler (struct intr_frame *);
 
@@ -13,12 +16,15 @@ static bool put_user (uint8_t *, uint8_t);
 
 static int sys_exit (int);
 static int sys_halt (void);
+static int sys_write (int, const void *, unsigned);
+
+static struct lock file_lock;
 
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-
+  lock_init (&file_lock);
   // syscall_table[SYS_EXIT] = (handle_ptr)sys_exit;
   // syscall_table[SYS_HALT] = (handle_ptr)sys_halt;
   // syscall_table[SYS_CREATE] = (handle_ptr)sys_create;
@@ -79,7 +85,9 @@ syscall_handler (struct intr_frame *f UNUSED)
       printf ("SYS_READ Not Implemented\n");
       break;
     case SYS_WRITE:
-      printf ("SYS_WRITE Not Implemented\n");
+      return_value = sys_write ((int)*(esp+1),
+                                (void *)*(esp+2),
+                                (unsigned)*(esp+3));
       break;
     case SYS_SEEK:
       printf ("SYS_SEEK Not Implemented\n");
@@ -94,22 +102,43 @@ syscall_handler (struct intr_frame *f UNUSED)
       ASSERT (false);
   }
 
-  f->eax = return_value;
+  f->eax = (uint32_t) return_value;
 
   return;
 
 }
 
-static int sys_exit (int status)
+static int
+sys_exit (int status)
 {
   thread_exit();
   return -1;
 }
 
-static int sys_halt (void)
+static int
+sys_halt (void)
 {
   shutdown_power_off ();
 }
+
+static int
+sys_write (int fd, const void *buffer, unsigned size)
+{
+  // printf("FD: %d\n", fd);
+  // printf("Buffer: %s\n", (char *) buffer);
+  // printf("Size: %u\n", size);
+  if (fd == FD_CONSOLE)
+    putbuf(buffer, size);
+  else
+  {
+    lock_acquire (&file_lock);
+    ASSERT (false);
+    lock_release (&file_lock);
+  }
+  return -1;
+}
+
+
 
 /* Reads a byte at user virtual address UADDR.
 UADDR must be below PHYS_BASE.
