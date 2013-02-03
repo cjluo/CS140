@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -50,10 +51,16 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  char *file_name = file_name_;
+  char *token, *save_ptr;
+  char *file_name_buffer = malloc (strlen (file_name_) + 1);
+  strlcpy(file_name_buffer, file_name_, strlen (file_name_) + 1);
+  char *file_name = strtok_r (file_name_, " ", &save_ptr);
   struct intr_frame if_;
   bool success;
-
+  
+  if (file_name == NULL)
+    thread_exit ();
+  
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -62,10 +69,56 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
+  {
+    palloc_free_page (file_name_);
     thread_exit ();
+  }
+  
+  uint32_t argc = 1;
+  for (token = strtok_r (NULL, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr))
+  {
+    argc++;
+  }
+  
+  uint32_t *offset = malloc (argc * sizeof (uint32_t));
 
+  char *if_esp = (char *) if_.esp;
+  
+  int i = 0;
+  for (token = strtok_r (file_name_buffer, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr))
+  {
+    if_esp -= (strlen(token) + 1);
+    strlcpy (if_esp, token, strlen (token) + 1);
+    offset[i] = (uint32_t) if_esp;
+    i++;
+  }
+
+  // alignment 
+  while (((uint32_t)if_esp) % 4)
+    *(--if_esp) = 0;
+
+  uint32_t *if_esp_32 = (uint32_t *) if_esp;
+
+  *(--if_esp_32) = 0;
+  for (i = argc - 1; i >= 0; i-- )
+    *(--if_esp_32) = offset[i];
+
+  --if_esp_32;
+  *if_esp_32 = (uint32_t) (if_esp_32+1);
+  *(--if_esp_32)  = (uint32_t) argc;
+  *(--if_esp_32)  = 0;
+
+  if_.esp = (void *) if_esp_32;
+
+  free(offset);
+  free(file_name_buffer);
+
+  
+  palloc_free_page (file_name_);
+  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -131,7 +184,6 @@ process_activate (void)
      interrupts. */
   tss_update ();
 }
-
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -315,7 +367,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file_close (file);
   return success;
 }
-
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
