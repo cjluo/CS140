@@ -4,87 +4,113 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "devices/shutdown.h"
 
-static void syscall_handle_ptr (struct intr_frame *);
-typedef int (*handle_ptr) (uint32_t, uint32_t, uint32_t);
-static handle_ptr syscall_table[128];
+static void syscall_handler (struct intr_frame *);
 
+static int get_user (const uint8_t *);
+static bool put_user (uint8_t *, uint8_t);
 
-
-int sys_write (int a, int b, int c)
-{
-   
-   //syscall1 (SYS_EXEC, "asdf");
-	printf("#### SYS_EXEC: %d %s %d \n", a, b, c);
-
-}
+static int sys_exit (uint32_t);
+static int sys_halt (void);
 
 void
 syscall_init (void) 
 {
-  intr_register_int (0x30, 3, INTR_ON, syscall_handle_ptr, "syscall");
-  /*
-  syscall_table[SYS_EXIT] = (handle_ptr)sys_exit;
-  syscall_table[SYS_HALT] = (handle_ptr)sys_halt;
-  syscall_table[SYS_CREATE] = (handle_ptr)sys_create;
-  syscall_table[SYS_OPEN] = (handle_ptr)sys_open;
-  syscall_table[SYS_CLOSE] = (handle_ptr)sys_close;
-  syscall_table[SYS_READ] = (handle_ptr)sys_read;
-  syscall_table[SYS_WRITE] = (handle_ptr)sys_write;
-  syscall_table[SYS_EXEC] = (handle_ptr)sys_exec;
-  syscall_table[SYS_WAIT] = (handle_ptr)sys_wait;
-  syscall_table[SYS_FILESIZE] = (handle_ptr)sys_filesize;
-  syscall_table[SYS_SEEK] = (handle_ptr)sys_seek;
-  syscall_table[SYS_TELL] = (handle_ptr)sys_tell;
-  syscall_table[SYS_REMOVE] = (handle_ptr)sys_remove;  
-  */
+  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+
+  // syscall_table[SYS_EXIT] = (handle_ptr)sys_exit;
+  // syscall_table[SYS_HALT] = (handle_ptr)sys_halt;
+  // syscall_table[SYS_CREATE] = (handle_ptr)sys_create;
+  // syscall_table[SYS_OPEN] = (handle_ptr)sys_open;
+  // syscall_table[SYS_CLOSE] = (handle_ptr)sys_close;
+  // syscall_table[SYS_READ] = (handle_ptr)sys_read;
+  // syscall_table[SYS_WRITE] = (handle_ptr)sys_write;
+  // syscall_table[SYS_EXEC] = (handle_ptr)sys_exec;
+  // syscall_table[SYS_WAIT] = (handle_ptr)sys_wait;
+  // syscall_table[SYS_FILESIZE] = (handle_ptr)sys_filesize;
+  // syscall_table[SYS_SEEK] = (handle_ptr)sys_seek;
+  // syscall_table[SYS_TELL] = (handle_ptr)sys_tell;
+  // syscall_table[SYS_REMOVE] = (handle_ptr)sys_remove;  
+
 }
 
 static void
-syscall_handle_ptr (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call \n");
-
-  handle_ptr h;
-  int *p;
-  int ret;
+  char *esp = (char *)f->esp;
+  // printf ("system call Num %d \n", *esp);
   
-  p = f->esp;
-  printf ("system call Num %d \n", *p);
+  if (!is_user_vaddr (esp))
+    sys_exit (-1);
   
-  switch(*p){
-  	case SYS_WRITE: 
-      sys_write( *(p+1), *(p+2), *(p+3));
-      printf("### End SYS_WRITE\n");
-  	  break;
+  int syscall_num = *esp;
+  if (syscall_num < SYS_HALT || SYS_HALT > SYS_INUMBER)
+    sys_exit (-1);
+  
+  int return_value = -1;
+  switch(syscall_num)
+  {
+    case SYS_HALT:
+      return_value = sys_halt ();
+      break;
+    case SYS_EXIT:
+      return_value = sys_exit (*(esp+1));
+      break;
+    case SYS_EXEC:
+      printf ("SYS_EXEC Not Implemented\n");
+      break;
+    case SYS_WAIT:
+      printf ("SYS_WAIT Not Implemented\n");
+      break;
+    case SYS_CREATE:
+      printf ("SYS_CREATE Not Implemented\n");
+      break;
+    case SYS_REMOVE:
+      printf ("SYS_REMOVE Not Implemented\n");
+      break;
+    case SYS_OPEN:
+      printf ("SYS_OPEN Not Implemented\n");
+      break;
+    case SYS_FILESIZE:
+      printf ("SYS_FILESIZE Not Implemented\n");
+      break;
+    case SYS_READ:
+      printf ("SYS_READ Not Implemented\n");
+      break;
+    case SYS_WRITE:
+      printf ("SYS_WRITE Not Implemented\n");
+      break;
+    case SYS_SEEK:
+      printf ("SYS_SEEK Not Implemented\n");
+      break;
+    case SYS_TELL:
+      printf ("SYS_TELL Not Implemented\n");
+      break;
+    case SYS_CLOSE:
+      printf ("SYS_CLOSE Not Implemented\n");
+      break;
+    default:
+      ASSERT (false);
   }
 
-  //thread_exit();
-
-  return;
-
-
-
-  if (!is_user_vaddr (p))
-    thread_exit();
-  
-  if (*p < SYS_HALT || *p > SYS_INUMBER)
-    thread_exit();
-  
-  h = syscall_table[*p];
-  
-  if (!(is_user_vaddr (p + 1) && is_user_vaddr (p + 2) && is_user_vaddr (p + 3)))
-    thread_exit();
-  
-  ret = h (*(p + 1), *(p + 2), *(p + 3));
-  
-  f->eax = ret;
+  f->eax = return_value;
 
   return;
 
 }
 
+static int sys_exit (uint32_t arg1)
+{
+  int status = (int)arg1;
+  thread_exit();
+  return -1;
+}
 
+static int sys_halt (void)
+{
+  shutdown_power_off ();
+}
 
 /* Reads a byte at user virtual address UADDR.
 UADDR must be below PHYS_BASE.
