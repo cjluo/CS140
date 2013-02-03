@@ -11,7 +11,7 @@ static void syscall_handler (struct intr_frame *);
 static int get_user (const uint8_t *);
 static bool put_user (uint8_t *, uint8_t);
 
-static int sys_exit (uint32_t);
+static int sys_exit (int);
 static int sys_halt (void);
 
 void
@@ -38,7 +38,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  char *esp = (char *)f->esp;
+  uint32_t *esp = (uint32_t *)f->esp;
   // printf ("system call Num %d \n", *esp);
   
   if (!is_user_vaddr (esp))
@@ -55,7 +55,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       return_value = sys_halt ();
       break;
     case SYS_EXIT:
-      return_value = sys_exit (*(esp+1));
+      return_value = sys_exit ((int)*(esp+1));
       break;
     case SYS_EXEC:
       printf ("SYS_EXEC Not Implemented\n");
@@ -100,9 +100,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 }
 
-static int sys_exit (uint32_t arg1)
+static int sys_exit (int status)
 {
-  int status = (int)arg1;
   thread_exit();
   return -1;
 }
