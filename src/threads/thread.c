@@ -109,7 +109,7 @@ thread_init (void)
 
   list_init (&ready_list);
   list_init (&all_list);
-
+  
   load_avg = 0;
   next_thread = NULL;
   ready_list_size = 0;
@@ -584,6 +584,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   t->wakeup_ticks = WAKEUP_INIT;
   t->waiting_lock = NULL;
+  
+  list_init (&t->file_list);
   
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
