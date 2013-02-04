@@ -18,6 +18,7 @@ static bool put_user (uint8_t *, uint8_t);
 
 static int sys_exit (int);
 static int sys_halt (void);
+static int sys_exec (const char *);
 static int sys_create (const char *, unsigned);
 static int sys_remove (const char *);
 static int sys_open (const char *);
@@ -82,7 +83,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       return_value = sys_exit ((int)*(esp+1));
       break;
     case SYS_EXEC:
-      printf ("SYS_EXEC Not Implemented\n");
+      return_value = sys_exec ((const char *)*(esp+1));
       break;
     case SYS_WAIT:
       printf ("SYS_WAIT Not Implemented\n");
@@ -94,7 +95,6 @@ syscall_handler (struct intr_frame *f UNUSED)
       return_value = sys_remove ((const char *)*(esp+1));
       break;
     case SYS_OPEN:
-      // printf ("SYS_OPEN Not Implemented\n");
       return_value = sys_open ((char *)*(esp+1));
       break;
     case SYS_FILESIZE:
@@ -143,6 +143,16 @@ sys_halt (void)
 }
 
 static int
+sys_exec (const char *cmd_line)
+{
+  if (!cmd_line)
+    return -1;
+  if (!is_user_vaddr (cmd_line))
+    sys_exit (-1);
+  return process_execute (cmd_line);
+}
+
+static int
 sys_create (const char *file, unsigned initial_size)
 { 
   //test address
@@ -155,6 +165,9 @@ sys_create (const char *file, unsigned initial_size)
   lock_release (&file_lock);
   return (int)return_value;
 }
+
+static int
+sys_exec (const char *);
 
 static int
 sys_remove (const char *file)

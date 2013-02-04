@@ -18,9 +18,16 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
+struct process_frame
+{
+  struct semaphore *load_finish;
+  void *file_name_;
+};
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -39,18 +46,29 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  struct semaphore load_finish;
+  sema_init (&load_finish, 0);
+  struct process_frame p_frame;
+  p_frame.load_finish = &load_finish;
+  p_frame.file_name_ = fn_copy;
+  
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, &p_frame);
+  sema_down (&load_finish);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);    
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *process_frame_struct)
 {
+  struct process_frame *p_frame = (struct process_frame *)process_frame_struct;
+  void *file_name_ = p_frame->file_name_;
+  struct semaphore *load_finish = p_frame->load_finish;
+  
   char *token, *save_ptr;
   char *file_name_buffer = malloc (strlen (file_name_) + 1);
   strlcpy(file_name_buffer, file_name_, strlen (file_name_) + 1);
@@ -67,7 +85,8 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
+  sema_up (load_finish);
+  
   /* If load failed, quit. */
   if (!success)
   {
