@@ -18,12 +18,17 @@ static bool put_user (uint8_t *, uint8_t);
 
 static int sys_exit (int);
 static int sys_halt (void);
-static int sys_open (const char *file);
+static int sys_create (const char *, unsigned);
+static int sys_remove (const char *);
+static int sys_open (const char *);
+static int sys_filesize (int);
 static int sys_read (int, void *, unsigned);
 static int sys_write (int, const void *, unsigned);
+static int sys_seek (int, unsigned);
+static int sys_tell (int);
 static int sys_close (int);
-
 static int fd_gen (void);
+static struct fd_frame * fd_to_fd_frame (int);
 
 static struct lock file_lock;
 struct fd_frame
@@ -83,17 +88,17 @@ syscall_handler (struct intr_frame *f UNUSED)
       printf ("SYS_WAIT Not Implemented\n");
       break;
     case SYS_CREATE:
-      printf ("SYS_CREATE Not Implemented\n");
+      return_value = sys_create ((const char *)*(esp+1), (unsigned)*(esp+2));
       break;
     case SYS_REMOVE:
-      printf ("SYS_REMOVE Not Implemented\n");
+      return_value = sys_remove ((const char *)*(esp+1));
       break;
     case SYS_OPEN:
       // printf ("SYS_OPEN Not Implemented\n");
       return_value = sys_open ((char *)*(esp+1));
       break;
     case SYS_FILESIZE:
-      printf ("SYS_FILESIZE Not Implemented\n");
+      return_value = sys_filesize ((int)*(esp+1));
       break;
     case SYS_READ:
       return_value = sys_read ((int)*(esp+1),
@@ -106,10 +111,10 @@ syscall_handler (struct intr_frame *f UNUSED)
                                 (unsigned)*(esp+3));
       break;
     case SYS_SEEK:
-      printf ("SYS_SEEK Not Implemented\n");
+      return_value = sys_seek ((int)*(esp+1), (unsigned)*(esp+2));
       break;
     case SYS_TELL:
-      printf ("SYS_TELL Not Implemented\n");
+      return_value = sys_tell ((int)*(esp+1));
       break;
     case SYS_CLOSE:
       return_value = sys_close ((int)*(esp+1));
@@ -135,6 +140,32 @@ static int
 sys_halt (void)
 {
   shutdown_power_off ();
+}
+
+static int
+sys_create (const char *file, unsigned initial_size)
+{ 
+  //test address
+  if (!file)
+    return -1;
+  if (!is_user_vaddr (file))
+    sys_exit (-1);
+  lock_acquire (&file_lock);
+  bool return_value = filesys_create(file, initial_size);
+  lock_release (&file_lock);
+  return (int)return_value;
+}
+
+static int
+sys_remove (const char *file)
+{
+  //test address
+  if (!file)
+    return -1;
+  if (!is_user_vaddr (file))
+    sys_exit (-1);
+  
+  return (int)filesys_remove (file);
 }
 
 static int
@@ -171,6 +202,15 @@ sys_open (const char *file)
 }
 
 static int
+sys_filesize (int fd)
+{
+  struct fd_frame *f = fd_to_fd_frame (fd);
+  if (f)
+    return (int)file_length (f->file);
+  return -1;
+}
+
+static int
 sys_read (int fd, void *buffer, unsigned size)
 {
   if (!is_user_vaddr (buffer) || !is_user_vaddr (buffer + size))
@@ -188,18 +228,13 @@ sys_read (int fd, void *buffer, unsigned size)
     return size;
   }
   
-  struct list *l = &thread_current() -> file_list;
-  struct list_elem *e;
-  for (e = list_begin (l); e != list_end (l); e = list_next (e))
+  struct fd_frame *f = fd_to_fd_frame(fd);
+  if (f)
   {
-    struct fd_frame *f = list_entry (e, struct fd_frame, elem);
-    if (f->fd == fd)
-    {
-      lock_acquire (&file_lock);
-      off_t return_value = file_read (f->file, buffer, size);
-      lock_release (&file_lock);
-      return (int)return_value;
-    }
+    lock_acquire (&file_lock);
+    off_t return_value = file_read (f->file, buffer, size);
+    lock_release (&file_lock);
+    return (int)return_value;
   }
   
   return -1;
@@ -208,17 +243,46 @@ sys_read (int fd, void *buffer, unsigned size)
 static int
 sys_write (int fd, const void *buffer, unsigned size)
 {
-  // printf("FD: %d\n", fd);
-  // printf("Buffer: %s\n", (char *) buffer);
-  // printf("Size: %u\n", size);
+  if (!is_user_vaddr (buffer) || !is_user_vaddr (buffer + size))
+    sys_exit(-1);
+  if (fd <= 0)
+    return -1;
+  
   if (fd == STDOUT_FILENO)
+  {
     putbuf(buffer, size);
+    return size;
+  }
   else
   {
-    lock_acquire (&file_lock);
-    ASSERT (false);
-    lock_release (&file_lock);
+    struct fd_frame *f = fd_to_fd_frame (fd);
+    if(f)
+    {
+      lock_acquire (&file_lock);
+      int return_value = file_write (f->file, buffer, size);
+      lock_release (&file_lock);
+      return (int)return_value;
+    }
   }
+  return -1;
+}
+
+static int
+sys_seek (int fd, unsigned position)
+{
+  struct fd_frame *f = fd_to_fd_frame (fd);
+  if(f)
+    file_seek (f->file, position);
+  return -1;
+}
+
+
+static int
+sys_tell (int fd)
+{
+  struct fd_frame *f = fd_to_fd_frame (fd);
+  if(f)
+    return file_tell (f->file);
   return -1;
 }
 
@@ -228,17 +292,14 @@ sys_close (int fd)
   if (fd < 2)
     return -1;
   
-  struct list *l = &thread_current() -> file_list;
-  struct list_elem *e;
-  for (e = list_begin (l); e != list_end (l); e = list_next (e))
+  struct fd_frame *f = fd_to_fd_frame(fd);
+  if (f)
   {
-    struct fd_frame *f = list_entry (e, struct fd_frame, elem);
-    if (f->fd == fd)
-    {
-      lock_acquire (&file_lock);
-      file_close (f->file);
-      lock_release (&file_lock);
-    }
+    lock_acquire (&file_lock);
+    file_close (f->file);
+    lock_release (&file_lock);
+    list_remove(&f->elem);
+    free (f);
   }
   return -1;
 }
@@ -272,4 +333,18 @@ fd_gen (void)
 {
   static int fd = 1;
   return ++fd;
+}
+
+static struct fd_frame *
+fd_to_fd_frame (int fd)
+{
+  struct list *l = &thread_current() -> file_list;
+  struct list_elem *e;
+  for (e = list_begin (l); e != list_end (l); e = list_next (e))
+  {
+    struct fd_frame *f = list_entry (e, struct fd_frame, elem);
+    if (f->fd == fd)
+      return f;
+  }
+  return NULL;
 }
