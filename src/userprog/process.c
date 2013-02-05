@@ -53,13 +53,24 @@ process_execute (const char *file_name)
   p_frame.file_name_ = fn_copy;
   
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, &p_frame);
+  char *save_ptr;
+  char *thread_name = strtok_r ((void *)file_name, " ", &save_ptr);
+  tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
   sema_down (&load_finish);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   else
-    list_push_back (&(thread_current ()->child_list),
-                    &(tid_to_thread(tid)->child_elem));
+  {
+    struct thread *child = tid_to_thread(tid);
+    if (child != NULL)
+    {
+      // ASSERT(child != NULL);
+      // printf ("list push back: tid %d, file name %s\n", tid, file_name);
+      list_push_back (&(thread_current ()->child_list),
+                      &(child->child_elem));
+    }
+    
+  }
   return tid;
 }
 

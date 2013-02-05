@@ -52,7 +52,6 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   uint32_t *esp = (uint32_t *)f->esp;
-  // printf ("system call Num %d \n", *esp);
   
   if (!is_user_vaddr (esp))
     sys_exit (-1);
@@ -120,6 +119,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 static int
 sys_exit (int status)
 {
+  struct thread *t = thread_current();
+  printf("%s: exit(%d)\n", t->name, status);
   thread_exit();
   return -1;
 }
@@ -178,7 +179,6 @@ sys_remove (const char *file)
 static int
 sys_open (const char *file)
 {
-  printf ("sys_open finished filename: %s\n", file);   
   //test address
   if (!file)
     return -1;
@@ -203,7 +203,6 @@ sys_open (const char *file)
   fd_open_frame->file = f;
   fd_open_frame->fd = fd_gen ();
   list_push_back(&thread_current ()->file_list, &fd_open_frame->elem);
-  printf ("sys_open finished fd: %d\n", fd_open_frame->fd);  
   
   return fd_open_frame->fd;
 }
