@@ -345,6 +345,19 @@ thread_current (void)
   return t;
 }
 
+struct thread *
+tid_to_thread (tid_t tid)
+{
+  struct list_elem *e;
+  for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry (e, struct thread, allelem);
+    if (t->tid == tid)
+      return t;
+  }
+  return NULL;
+}
+
 /* Returns the running thread's tid. */
 tid_t
 thread_tid (void) 
@@ -586,6 +599,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->waiting_lock = NULL;
   
   list_init (&t->file_list);
+  list_init (&t->child_list);
+  
+  sema_init (&t->thread_finish, 0);
   
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -766,5 +782,3 @@ all_threads_update (void)
     thread_foreach (recent_cpu_update, NULL);
 
 }
-
-

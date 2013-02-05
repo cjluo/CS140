@@ -10,6 +10,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "devices/input.h"
+#include "userprog/process.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -19,6 +20,7 @@ static bool put_user (uint8_t *, uint8_t);
 static int sys_exit (int);
 static int sys_halt (void);
 static int sys_exec (const char *);
+static int sys_wait (int);
 static int sys_create (const char *, unsigned);
 static int sys_remove (const char *);
 static int sys_open (const char *);
@@ -44,20 +46,6 @@ syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init (&file_lock);
-  // syscall_table[SYS_EXIT] = (handle_ptr)sys_exit;
-  // syscall_table[SYS_HALT] = (handle_ptr)sys_halt;
-  // syscall_table[SYS_CREATE] = (handle_ptr)sys_create;
-  // syscall_table[SYS_OPEN] = (handle_ptr)sys_open;
-  // syscall_table[SYS_CLOSE] = (handle_ptr)sys_close;
-  // syscall_table[SYS_READ] = (handle_ptr)sys_read;
-  // syscall_table[SYS_WRITE] = (handle_ptr)sys_write;
-  // syscall_table[SYS_EXEC] = (handle_ptr)sys_exec;
-  // syscall_table[SYS_WAIT] = (handle_ptr)sys_wait;
-  // syscall_table[SYS_FILESIZE] = (handle_ptr)sys_filesize;
-  // syscall_table[SYS_SEEK] = (handle_ptr)sys_seek;
-  // syscall_table[SYS_TELL] = (handle_ptr)sys_tell;
-  // syscall_table[SYS_REMOVE] = (handle_ptr)sys_remove;  
-
 }
 
 static void
@@ -86,7 +74,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       return_value = sys_exec ((const char *)*(esp+1));
       break;
     case SYS_WAIT:
-      printf ("SYS_WAIT Not Implemented\n");
+      return_value = sys_wait ((int)*(esp+1));
       break;
     case SYS_CREATE:
       return_value = sys_create ((const char *)*(esp+1), (unsigned)*(esp+2));
@@ -150,6 +138,12 @@ sys_exec (const char *cmd_line)
   if (!is_user_vaddr (cmd_line))
     sys_exit (-1);
   return process_execute (cmd_line);
+}
+
+static int
+sys_wait (int tid)
+{
+  return process_wait(tid);
 }
 
 static int

@@ -56,7 +56,10 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, &p_frame);
   sema_down (&load_finish);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy);    
+    palloc_free_page (fn_copy);
+  else
+    list_push_back (&(thread_current ()->child_list),
+                    &(tid_to_thread(tid)->child_elem));
   return tid;
 }
 
@@ -160,6 +163,23 @@ start_process (void *process_frame_struct)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  if(child_tid >= 0)
+  {
+    struct thread *current_thread = thread_current ();
+    struct list_elem *e;
+    for (e = list_begin (&current_thread->child_list);
+         e != list_end (&current_thread->child_list);
+         e = list_next(e))
+    {
+      struct thread *t = list_entry (e, struct thread, child_elem);
+      if (t->tid == child_tid)
+      {
+        sema_down (&t->thread_finish);
+        list_remove(e);
+        break;
+      }
+    }
+  }
   return -1;
 }
 
@@ -186,6 +206,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  
+  sema_up (&cur->thread_finish);
 }
 
 /* Sets up the CPU for running user code in the current
