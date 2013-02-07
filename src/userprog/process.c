@@ -90,6 +90,7 @@ start_process (void *process_frame_struct)
 
   if (file_name == NULL){
       child -> is_success = 0;
+      thread_exit ();
   }
   
   /* Initialize interrupt frame and load executable. */
