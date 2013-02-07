@@ -30,6 +30,13 @@ struct process_frame
   struct thread *parent;
 };
 
+struct exit_thread_frame
+{
+  int status;
+  tid_t tid;
+  struct list_elem elem;
+};
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -94,7 +101,7 @@ start_process (void *process_frame_struct)
   struct thread *child = thread_current ();
   list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
-  printf("add to child, parent %d, child %d\n", p_frame->parent->tid,child-> tid);
+  // printf("add to child, parent %d, child %d\n", p_frame->parent->tid,child-> tid);
   child->parent = p_frame->parent;
   
   sema_up (load_finish);
@@ -176,22 +183,36 @@ process_wait (tid_t child_tid UNUSED)
   {
     struct thread *current_thread = thread_current ();
     struct list_elem *e;
+
+    for (e = list_begin (&current_thread->exit_child_list);
+         e != list_end (&current_thread->exit_child_list);
+         e = list_next(e))
+    {
+      struct exit_thread_frame *f = list_entry (e, struct exit_thread_frame, elem);
+      
+      if (f->tid == child_tid)
+      {
+        list_remove(e);
+        return f->status;
+      }
+    }
+
     for (e = list_begin (&current_thread->child_list);
          e != list_end (&current_thread->child_list);
          e = list_next(e))
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
-      printf("process wait %d\n", t->tid);
+      // printf("process wait %d\n", t->tid);
       
       if (t->tid == child_tid)
       {
         sema_down (&t->thread_finish);
         list_remove(e);
-        break;
+        return t->exit_status;
       }
     }
   }
-  return thread_current ()->exit_status;
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -219,7 +240,13 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  
+  if (is_thread(cur->parent))
+  {
+    struct exit_thread_frame *f = malloc (sizeof(struct exit_thread_frame));
+    f->status = cur->exit_status;
+    f->tid = cur->tid;
+    list_push_back (&cur->parent->exit_child_list, &f->elem);
+  }
   sema_up (&cur->thread_finish);
 }
 

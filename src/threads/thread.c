@@ -73,7 +73,6 @@ static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *, const char *name, int priority);
-static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
@@ -562,7 +561,7 @@ running_thread (void)
 }
 
 /* Returns true if T appears to point to a valid thread. */
-static bool
+bool
 is_thread (struct thread *t)
 {
   return t != NULL && t->magic == THREAD_MAGIC;
@@ -603,6 +602,7 @@ init_thread (struct thread *t, const char *name, int priority)
   
   list_init (&t->file_list);
   list_init (&t->child_list);
+  list_init (&t->exit_child_list);
   
   sema_init (&t->thread_finish, 0);
   

@@ -102,6 +102,7 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 	struct list file_list;
 	struct list child_list;
+	struct list exit_child_list;
 	
 	struct list_elem child_elem;
 	
@@ -165,5 +166,6 @@ int thread_get_load_avg (void);
 bool priority_compare (const struct list_elem *,
                               const struct list_elem *,
                               void *);
-							  
+
+bool is_thread (struct thread *) UNUSED;							  
 #endif /* threads/thread.h */
