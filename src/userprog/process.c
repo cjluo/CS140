@@ -181,24 +181,26 @@ process_wait (tid_t child_tid UNUSED)
 { 
   if(child_tid >= 0)
   {
-    struct thread *current_thread = thread_current ();
+    struct thread *cur = thread_current ();
     struct list_elem *e;
 
-    for (e = list_begin (&current_thread->exit_child_list);
-         e != list_end (&current_thread->exit_child_list);
-         e = list_next(e))
-    {
-      struct exit_thread_frame *f = list_entry (e, struct exit_thread_frame, elem);
+    // for (e = list_begin (&cur->exit_child_list);
+         // e != list_end (&cur->exit_child_list);
+         // e = list_next(e))
+    // {
+      // struct exit_thread_frame *f = list_entry (e, struct exit_thread_frame, elem);
       
-      if (f->tid == child_tid)
-      {
-        list_remove(e);
-        return f->status;
-      }
-    }
+      // if (f->tid == child_tid)
+      // {
+        // list_remove(e);
+        // int status = f->status;
+        // free (f);
+        // return status;
+      // }
+    // }
 
-    for (e = list_begin (&current_thread->child_list);
-         e != list_end (&current_thread->child_list);
+    for (e = list_begin (&cur->child_list);
+         e != list_end (&cur->child_list);
          e = list_next(e))
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
@@ -222,8 +224,6 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  list_remove (&cur->child_elem);
-  
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -240,13 +240,27 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  list_remove (&cur->child_elem);
   if (is_thread(cur->parent))
   {
     struct exit_thread_frame *f = malloc (sizeof(struct exit_thread_frame));
     f->status = cur->exit_status;
     f->tid = cur->tid;
     list_push_back (&cur->parent->exit_child_list, &f->elem);
-  }
+  } 
+
+  struct list_elem *e;
+
+  for (e = list_begin (&cur->exit_child_list);
+       e != list_end (&cur->exit_child_list);
+       e = list_next(e))
+  {
+    struct exit_thread_frame *f = list_entry (e, struct exit_thread_frame, elem);
+    list_remove (e);
+    printf("%x\n", (unsigned)f);
+    // free (f);
+  }  
   sema_up (&cur->thread_finish);
 }
 
