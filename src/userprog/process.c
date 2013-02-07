@@ -56,6 +56,7 @@ process_execute (const char *file_name)
   char *save_ptr;
   char *thread_name = strtok_r ((void *)file_name, " ", &save_ptr);
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
+  printf("tid1 %d\n", tid);
   sema_down (&load_finish);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
@@ -65,7 +66,7 @@ process_execute (const char *file_name)
     if (child != NULL)
     {
       // ASSERT(child != NULL);
-      // printf ("list push back: tid %d, file name %s\n", tid, file_name);
+      printf ("list push back: tid %d, file name %s\n", tid, file_name);
       list_push_back (&(thread_current ()->child_list),
                       &(child->child_elem));
     }
@@ -173,7 +174,7 @@ start_process (void *process_frame_struct)
    does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) 
-{
+{ 
   if(child_tid >= 0)
   {
     struct thread *current_thread = thread_current ();
@@ -183,11 +184,12 @@ process_wait (tid_t child_tid UNUSED)
          e = list_next(e))
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
+      printf("\nprocess wait t->tid %d, childid %d\n", t->tid, child_tid);
       if (t->tid == child_tid)
       {
         sema_down (&t->thread_finish);
         list_remove(e);
-        break;
+        return t->exit_status;
       }
     }
   }

@@ -140,6 +140,8 @@ sys_exit (int status)
 {
   struct thread *t = thread_current();
   printf("%s: exit(%d)\n", t->name, status);
+  t->exit_status = status;
+  printf("%s %d: exit(%d)\n", t->name, t->tid, status);
   thread_exit();
   return -1;
 }
@@ -154,12 +156,15 @@ static int
 sys_exec (const char *cmd_line)
 {
   check_valid_address (cmd_line);
-  return process_execute (cmd_line);
+  int tid = process_execute (cmd_line);
+  printf("\nexec %d\n", tid);
+  return tid;
 }
 
 static int
 sys_wait (int tid)
 {
+  printf("\nwait %d\n", tid);
   return process_wait(tid);
 }
 

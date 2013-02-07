@@ -106,6 +106,8 @@ struct thread
 	struct list_elem child_elem;
 	
 	struct semaphore thread_finish;
+	
+	int exit_status;
 #endif
 
     /* Owned by thread.c. */
