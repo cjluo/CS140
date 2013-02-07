@@ -55,12 +55,18 @@ process_execute (const char *file_name)
   p_frame.parent = thread_current ();
   
   /* Create a new thread to execute FILE_NAME. */
-  char *save_ptr;
-  char *thread_name = strtok_r ((void *)file_name, " ", &save_ptr);
+  char *save_ptr = "";
+
+  char *file_name_buffer = malloc (strlen (file_name) + 1);
+  strlcpy(file_name_buffer, file_name, strlen (file_name) + 1);
+  char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
+  free(file_name_buffer);
+  //free(thread_name);
+
+
   sema_down (&load_finish);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy);
+  // palloc_free_page will be called in start_process
 
   return tid;
 }
@@ -80,9 +86,11 @@ start_process (void *process_frame_struct)
   char *file_name = strtok_r (file_name_, " ", &save_ptr);
   struct intr_frame if_;
   bool success;
-  
-  if (file_name == NULL)
-    thread_exit ();
+  struct thread *child = thread_current ();
+
+  if (file_name == NULL){
+      child -> is_success = 0;
+  }
   
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -91,7 +99,6 @@ start_process (void *process_frame_struct)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
     
-  struct thread *child = thread_current ();
   list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
   // printf("add to child, parent %d, child %d\n", p_frame->parent->tid,child-> tid);
@@ -102,6 +109,7 @@ start_process (void *process_frame_struct)
   /* If load failed, quit. */
   if (!success)
   {
+    child -> is_success = 0;
     palloc_free_page (file_name_);
     thread_exit ();
   }

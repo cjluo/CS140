@@ -110,7 +110,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       check_valid_address (esp+3);
       return_value = sys_write ((int)*(esp+1),
                                 (void *)*(esp+2),
-                                (unsigned)*(esp+3));
+                                (unsigned)*(esp+3));    
       break;
     case SYS_SEEK:
       check_valid_address (esp+1);
@@ -156,7 +156,6 @@ sys_exec (const char *cmd_line)
 {
   check_valid_address (cmd_line);
   int tid = process_execute (cmd_line);
-  // printf("\nexec %d\n", tid);
   return tid;
 }
 
