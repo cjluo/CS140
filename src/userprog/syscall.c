@@ -20,7 +20,6 @@ static bool put_user (uint8_t *, uint8_t);
 static inline void check_valid_address (const void *);
 
 
-static int sys_exit (int);
 static int sys_halt (void);
 static int sys_exec (const char *);
 static int sys_wait (int);
@@ -136,7 +135,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 }
 
-static int
+int
 sys_exit (int status)
 {
   struct thread *t = thread_current();
