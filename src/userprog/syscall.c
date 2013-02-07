@@ -17,7 +17,7 @@ static void syscall_handler (struct intr_frame *);
 
 static int get_user (const uint8_t *);
 static bool put_user (uint8_t *, uint8_t);
-static inline bool is_valid_page_address (const void *);
+static inline void check_valid_address (const void *);
 
 
 static int sys_exit (int);
@@ -55,10 +55,10 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   uint32_t *esp = (uint32_t *)f->esp;
-  // printf("\nesp %x\n\n", esp);
-  if (!is_valid_page_address(esp))
-    sys_exit (-1);
+  check_valid_address (esp);
+
   int syscall_num = *esp;
+
   if (syscall_num < SYS_HALT || SYS_HALT > SYS_INUMBER)
     sys_exit (-1);
   
@@ -69,71 +69,61 @@ syscall_handler (struct intr_frame *f UNUSED)
       return_value = sys_halt ();
       break;
     case SYS_EXIT:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_exit ((int)*(esp+1));
       break;
     case SYS_EXEC:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_exec ((const char *)*(esp+1));
       break;
     case SYS_WAIT:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_wait ((int)*(esp+1));
       break;
     case SYS_CREATE:
-      if (!is_valid_page_address(esp+1) || !is_valid_page_address(esp+2))
-        sys_exit (-1);
+      check_valid_address (esp+1);
+      check_valid_address (esp+2);
       return_value = sys_create ((const char *)*(esp+1), (unsigned)*(esp+2));
       break;
     case SYS_REMOVE:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_remove ((const char *)*(esp+1));
       break;
     case SYS_OPEN:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_open ((char *)*(esp+1));
       break;
     case SYS_FILESIZE:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_filesize ((int)*(esp+1));
       break;
     case SYS_READ:
-      if (!is_valid_page_address(esp+1)
-       || !is_valid_page_address(esp+2)
-       || !is_valid_page_address(esp+3))
-        sys_exit (-1);
+      check_valid_address (esp+1);
+      check_valid_address (esp+2);
+      check_valid_address (esp+3);
       return_value = sys_read ((int)*(esp+1),
                                (void *)*(esp+2),
                                (unsigned)*(esp+3));
       break;
     case SYS_WRITE:
-      if (!is_valid_page_address(esp+1)
-       || !is_valid_page_address(esp+2)
-       || !is_valid_page_address(esp+3))
-        sys_exit (-1);
+      check_valid_address (esp+1);
+      check_valid_address (esp+2);
+      check_valid_address (esp+3);
       return_value = sys_write ((int)*(esp+1),
                                 (void *)*(esp+2),
                                 (unsigned)*(esp+3));
       break;
     case SYS_SEEK:
-      if (!is_valid_page_address(esp+1) || !is_valid_page_address(esp+2))
-        sys_exit (-1);
+      check_valid_address (esp+1);
+      check_valid_address (esp+2);
       return_value = sys_seek ((int)*(esp+1), (unsigned)*(esp+2));
       break;
     case SYS_TELL:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_tell ((int)*(esp+1));
       break;
     case SYS_CLOSE:
-      if (!is_valid_page_address(esp+1))
-        sys_exit (-1);
+      check_valid_address (esp+1);
       return_value = sys_close ((int)*(esp+1));
       break;
     default:
@@ -164,10 +154,7 @@ sys_halt (void)
 static int
 sys_exec (const char *cmd_line)
 {
-  if (!cmd_line)
-    return -1;
-  if (!is_valid_page_address(cmd_line))
-    sys_exit (-1);
+  check_valid_address (cmd_line);
   return process_execute (cmd_line);
 }
 
@@ -181,8 +168,7 @@ static int
 sys_create (const char *file, unsigned initial_size)
 { 
   //test address
-  if (!is_valid_page_address(file))
-    return -1;
+  check_valid_address (file);
   lock_acquire (&file_lock);
   bool return_value = filesys_create(file, initial_size);
   lock_release (&file_lock);
@@ -193,8 +179,7 @@ static int
 sys_remove (const char *file)
 {
   //test address
-  if (!is_valid_page_address(file))
-    return -1;
+  check_valid_address (file);
   
   return (int)filesys_remove (file);
 }
@@ -203,8 +188,7 @@ static int
 sys_open (const char *file)
 {
   //test address
-  if (!is_valid_page_address(file))
-    return -1;
+  check_valid_address (file);
 
   lock_acquire (&file_lock);
   struct file *f = filesys_open(file);
@@ -241,8 +225,10 @@ sys_filesize (int fd)
 static int
 sys_read (int fd, void *buffer, unsigned size)
 {
-  if (!is_valid_page_address (buffer) || !is_valid_page_address (buffer + size))
-    return -1;
+  if (size == 0)
+    return 0;  
+  check_valid_address (buffer);
+  check_valid_address (buffer + size - 1);
   
   if (fd < 0 || fd == 1)
     return -1;
@@ -271,8 +257,11 @@ sys_read (int fd, void *buffer, unsigned size)
 static int
 sys_write (int fd, const void *buffer, unsigned size)
 {
-  if (!is_valid_page_address (buffer) || !is_valid_page_address (buffer + size))
-    return -1;
+  if (size == 0)
+    return 0;  
+  check_valid_address (buffer);
+  check_valid_address (buffer + size - 1);
+
   if (fd <= 0)
     return -1;
   
@@ -377,11 +366,12 @@ fd_to_fd_frame (int fd)
   return NULL;
 }
 
-static inline bool
-is_valid_page_address (const void *address)
+static inline void
+check_valid_address (const void *address)
 {
   if (!is_user_vaddr (address))
     sys_exit (-1);
   struct thread *t = thread_current ();
-  return (pagedir_get_page (t->pagedir, address) != NULL);
+  if (pagedir_get_page (t->pagedir, address) == NULL)
+    sys_exit (-1);
 }
