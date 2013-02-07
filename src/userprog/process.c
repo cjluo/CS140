@@ -184,21 +184,6 @@ process_wait (tid_t child_tid UNUSED)
     struct thread *cur = thread_current ();
     struct list_elem *e;
 
-    // for (e = list_begin (&cur->exit_child_list);
-         // e != list_end (&cur->exit_child_list);
-         // e = list_next(e))
-    // {
-      // struct exit_thread_frame *f = list_entry (e, struct exit_thread_frame, elem);
-      
-      // if (f->tid == child_tid)
-      // {
-        // list_remove(e);
-        // int status = f->status;
-        // free (f);
-        // return status;
-      // }
-    // }
-
     for (e = list_begin (&cur->child_list);
          e != list_end (&cur->child_list);
          e = list_next(e))
@@ -209,7 +194,8 @@ process_wait (tid_t child_tid UNUSED)
       if (t->tid == child_tid)
       {
         sema_down (&t->thread_finish);
-        list_remove(e);
+        list_remove (e);
+        thread_unblock (t);
         return t->exit_status;
       }
     }
@@ -241,27 +227,11 @@ process_exit (void)
       pagedir_destroy (pd);
     }
 
-  list_remove (&cur->child_elem);
-  if (is_thread(cur->parent))
-  {
-    struct exit_thread_frame *f = malloc (sizeof(struct exit_thread_frame));
-    f->status = cur->exit_status;
-    f->tid = cur->tid;
-    list_push_back (&cur->parent->exit_child_list, &f->elem);
-  } 
-
-  struct list_elem *e;
-
-  for (e = list_begin (&cur->exit_child_list);
-       e != list_end (&cur->exit_child_list);
-       e = list_next(e))
-  {
-    struct exit_thread_frame *f = list_entry (e, struct exit_thread_frame, elem);
-    list_remove (e);
-    printf("%x\n", (unsigned)f);
-    // free (f);
-  }  
   sema_up (&cur->thread_finish);
+  
+  if (is_thread (cur->parent))
+    thread_block();
+  list_remove (&cur->child_elem);  
 }
 
 /* Sets up the CPU for running user code in the current
