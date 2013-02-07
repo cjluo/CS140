@@ -599,6 +599,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->wakeup_ticks = WAKEUP_INIT;
   t->waiting_lock = NULL;
   t->exit_status = -1;
+  t->parent = NULL;
   
   list_init (&t->file_list);
   list_init (&t->child_list);

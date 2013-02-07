@@ -27,6 +27,7 @@ struct process_frame
 {
   struct semaphore *load_finish;
   void *file_name_;
+  struct thread *parent;
 };
 
 /* Starts a new thread running a user program loaded from
@@ -51,27 +52,16 @@ process_execute (const char *file_name)
   struct process_frame p_frame;
   p_frame.load_finish = &load_finish;
   p_frame.file_name_ = fn_copy;
+  p_frame.parent = thread_current ();
   
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
   char *thread_name = strtok_r ((void *)file_name, " ", &save_ptr);
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
-  printf("tid1 %d\n", tid);
   sema_down (&load_finish);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
-  else
-  {
-    struct thread *child = tid_to_thread(tid);
-    if (child != NULL)
-    {
-      // ASSERT(child != NULL);
-      printf ("list push back: tid %d, file name %s\n", tid, file_name);
-      list_push_back (&(thread_current ()->child_list),
-                      &(child->child_elem));
-    }
-    
-  }
+
   return tid;
 }
 
@@ -100,6 +90,13 @@ start_process (void *process_frame_struct)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+    
+  struct thread *child = thread_current ();
+  list_push_back (&(p_frame->parent->child_list),
+                  &(child->child_elem));
+  printf("add to child, parent %d, child %d\n", p_frame->parent->tid,child-> tid);
+  child->parent = p_frame->parent;
+  
   sema_up (load_finish);
   
   /* If load failed, quit. */
@@ -184,16 +181,17 @@ process_wait (tid_t child_tid UNUSED)
          e = list_next(e))
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
-      printf("\nprocess wait t->tid %d, childid %d\n", t->tid, child_tid);
+      printf("process wait %d\n", t->tid);
+      
       if (t->tid == child_tid)
       {
         sema_down (&t->thread_finish);
         list_remove(e);
-        return t->exit_status;
+        break;
       }
     }
   }
-  return -1;
+  return thread_current ()->exit_status;
 }
 
 /* Free the current process's resources. */
@@ -203,6 +201,8 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  list_remove (&cur->child_elem);
+  
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;

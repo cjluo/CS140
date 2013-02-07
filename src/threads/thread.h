@@ -105,6 +105,8 @@ struct thread
 	
 	struct list_elem child_elem;
 	
+	struct thread *parent;
+	
 	struct semaphore thread_finish;
 	
 	int exit_status;

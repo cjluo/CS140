@@ -140,7 +140,8 @@ sys_exit (int status)
 {
   struct thread *t = thread_current();
   printf("%s: exit(%d)\n", t->name, status);
-  t->exit_status = status;
+  if (t->parent)
+    t->parent->exit_status = status;
   printf("%s %d: exit(%d)\n", t->name, t->tid, status);
   thread_exit();
   return -1;
