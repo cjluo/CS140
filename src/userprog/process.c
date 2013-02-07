@@ -30,6 +30,14 @@ struct process_frame
   struct thread *parent;
 };
 
+bool 
+load_success ()
+{
+
+
+
+}
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -60,14 +68,17 @@ process_execute (const char *file_name)
   char *file_name_buffer = malloc (strlen (file_name) + 1);
   strlcpy(file_name_buffer, file_name, strlen (file_name) + 1);
   char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
+
+
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
   free(file_name_buffer);
-  //free(thread_name);
-
 
   sema_down (&load_finish);
-  // palloc_free_page will be called in start_process
 
+  if (tid == TID_ERROR){
+    palloc_free_page (fn_copy);
+  }
+ 
   return tid;
 }
 
@@ -75,7 +86,7 @@ process_execute (const char *file_name)
    running. */
 static void
 start_process (void *process_frame_struct)
-{
+{  
   struct process_frame *p_frame = (struct process_frame *)process_frame_struct;
   void *file_name_ = p_frame->file_name_;
   struct semaphore *load_finish = p_frame->load_finish;
@@ -89,7 +100,6 @@ start_process (void *process_frame_struct)
   struct thread *child = thread_current ();
 
   if (file_name == NULL){
-      child -> is_success = 0;
       thread_exit ();
   }
   
@@ -105,15 +115,16 @@ start_process (void *process_frame_struct)
   // printf("add to child, parent %d, child %d\n", p_frame->parent->tid,child-> tid);
   child->parent = p_frame->parent;
   
-  sema_up (load_finish);
   
   /* If load failed, quit. */
   if (!success)
   {
-    child -> is_success = 0;
-    palloc_free_page (file_name_);
+    child -> tid = TID_ERROR;
+    sema_up (load_finish);
     thread_exit ();
-  }
+  }  
+  sema_up (load_finish);
+
   
   uint32_t argc = 1;
   for (token = strtok_r (NULL, " ", &save_ptr); token != NULL;
