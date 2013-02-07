@@ -102,7 +102,6 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
 	struct list file_list;
 	struct list child_list;
-	struct list exit_child_list;
 	
 	struct list_elem child_elem;
 	

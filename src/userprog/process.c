@@ -30,13 +30,6 @@ struct process_frame
   struct thread *parent;
 };
 
-struct exit_thread_frame
-{
-  int status;
-  tid_t tid;
-  struct list_elem elem;
-};
-
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -195,8 +188,10 @@ process_wait (tid_t child_tid UNUSED)
       {
         sema_down (&t->thread_finish);
         list_remove (e);
-        thread_unblock (t);
-        return t->exit_status;
+        int return_value = t->exit_status;
+        if(t->status == THREAD_BLOCKED)
+          thread_unblock (t);
+        return return_value;
       }
     }
   }
@@ -230,8 +225,25 @@ process_exit (void)
   sema_up (&cur->thread_finish);
   
   if (is_thread (cur->parent))
+  {
+    enum intr_level old_level = intr_disable ();
     thread_block();
-  list_remove (&cur->child_elem);  
+    intr_set_level (old_level);
+  }
+  list_remove (&cur->child_elem);
+    
+  struct list_elem *e;
+
+  for (e = list_begin (&cur->child_list);
+       e != list_end (&cur->child_list);
+       e = list_next(e))
+  {
+    struct thread *t = list_entry (e, struct thread, child_elem);
+    // printf("process wait %d\n", t->tid);
+
+    if(t->status == THREAD_BLOCKED)
+      thread_unblock (t);
+  }    
 }
 
 /* Sets up the CPU for running user code in the current

@@ -602,7 +602,6 @@ init_thread (struct thread *t, const char *name, int priority)
   
   list_init (&t->file_list);
   list_init (&t->child_list);
-  list_init (&t->exit_child_list);
   
   sema_init (&t->thread_finish, 0);
   
