@@ -19,6 +19,7 @@
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
+#include "userprog/syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -56,8 +57,14 @@ process_execute (const char *file_name)
   
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
-  char *thread_name = strtok_r ((void *)file_name, " ", &save_ptr);
+  // char *thread_name = strtok_r ((void *)file_name, " ", &save_ptr);
+  // tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
+  char *file_name_buffer = malloc (strlen (file_name) + 1);
+  strlcpy(file_name_buffer, file_name, strlen (file_name) + 1);
+  char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
+  free(file_name_buffer);
+  
   sema_down (&load_finish);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
@@ -89,8 +96,11 @@ start_process (void *process_frame_struct)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+  
+  lock_acquire (&file_lock);
   success = load (file_name, &if_.eip, &if_.esp);
-    
+  lock_release (&file_lock);
+  
   struct thread *child = thread_current ();
   list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
@@ -358,6 +368,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+  file_deny_write (file);
+
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -437,8 +449,17 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
-  success = true;
-
+  struct fd_frame *fd_open_frame = (struct fd_frame *) malloc (
+                                    sizeof(struct fd_frame));
+  if (!fd_open_frame)
+    goto done;
+  fd_open_frame->file = file;
+  fd_open_frame->fd = -1;
+  list_push_back(&thread_current ()->file_list, &fd_open_frame->elem);                                      
+  return true;
+  // success = true;
+  
+  
  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);
