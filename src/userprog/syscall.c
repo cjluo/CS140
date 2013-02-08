@@ -13,6 +13,14 @@
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 
+/* An open file. */
+struct file 
+  {
+    struct inode *inode;        /* File's inode. */
+    off_t pos;                  /* Current position. */
+    bool deny_write;            /* Has file_deny_write() been called? */
+  };
+
 static void syscall_handler (struct intr_frame *);
 
 static int get_user (const uint8_t *);
@@ -34,14 +42,6 @@ static int sys_tell (int);
 static int sys_close (int);
 static int fd_gen (void);
 static struct fd_frame * fd_to_fd_frame (int);
-
-static struct lock file_lock;
-struct fd_frame
-  {
-    int fd;
-    struct file *file;
-    struct list_elem elem;
-  };
 
 void
 syscall_init (void) 
@@ -140,6 +140,18 @@ sys_exit (int status)
 {
   struct thread *t = thread_current();
   printf("%s: exit(%d)\n", t->name, status);
+  
+  struct list_elem *e;
+  while (!list_empty (&t->file_list))
+  {
+    e = list_pop_front (&t->file_list);
+    struct fd_frame *f = list_entry(e, struct fd_frame, elem);
+    
+    file_close(f->file);
+    free (f);
+  }
+    
+    
   t->exit_status = status;
   thread_exit();
   return -1;
@@ -277,7 +289,7 @@ sys_write (int fd, const void *buffer, unsigned size)
     struct fd_frame *f = fd_to_fd_frame (fd);
     if(f)
     {
-      lock_acquire (&file_lock);
+      lock_acquire (&file_lock);    
       int return_value = file_write (f->file, buffer, size);
       lock_release (&file_lock);
       return (int)return_value;
