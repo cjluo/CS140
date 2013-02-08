@@ -29,6 +29,7 @@ struct process_frame
   struct semaphore *load_finish;
   void *file_name_;
   struct thread *parent;
+  bool load_success;
 };
 
 /* Starts a new thread running a user program loaded from
@@ -54,6 +55,7 @@ process_execute (const char *file_name)
   p_frame.load_finish = &load_finish;
   p_frame.file_name_ = fn_copy;
   p_frame.parent = thread_current ();
+  p_frame.load_success = true;
   
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
@@ -69,7 +71,7 @@ process_execute (const char *file_name)
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
-  return tid;
+  return p_frame.load_success ? tid : TID_ERROR;
 }
 
 /* A thread function that loads a user process and starts it
@@ -106,6 +108,8 @@ start_process (void *process_frame_struct)
                   &(child->child_elem));
   // printf("add to child, parent %d, child %d\n", p_frame->parent->tid,child-> tid);
   child->parent = p_frame->parent;
+  
+  p_frame->load_success = success;
   
   sema_up (load_finish);
   
