@@ -32,6 +32,13 @@ struct process_frame
   bool load_success;
 };
 
+struct exit_status_frame
+{
+  tid_t tid;
+  int status;
+  struct list_elem elem;
+};
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -59,14 +66,13 @@ process_execute (const char *file_name)
   
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
-  // char *thread_name = strtok_r ((void *)file_name, " ", &save_ptr);
-  // tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
   char *file_name_buffer = malloc (strlen (file_name) + 1);
   strlcpy(file_name_buffer, file_name, strlen (file_name) + 1);
   char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
   free(file_name_buffer);
   
+  // wait for the finish of loading p_frame
   sema_down (&load_finish);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
@@ -99,18 +105,21 @@ start_process (void *process_frame_struct)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   
+  // lock filesys before finish loading
   lock_acquire (&file_lock);
   success = load (file_name, &if_.eip, &if_.esp);
   lock_release (&file_lock);
   
   struct thread *child = thread_current ();
+  // add the thread to its parent's child_list
   list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
-  // printf("add to child, parent %d, child %d\n", p_frame->parent->tid,child-> tid);
+  
   child->parent = p_frame->parent;
   
   p_frame->load_success = success;
   
+  // informs that it finishes loading
   sema_up (load_finish);
   
   /* If load failed, quit. */
@@ -191,23 +200,38 @@ process_wait (tid_t child_tid UNUSED)
     struct thread *cur = thread_current ();
     struct list_elem *e;
 
+    // search the list of current children to find the children to wait,
+    // then wait for its finish semaphore
+    // and remove it from the list.
     for (e = list_begin (&cur->child_list);
          e != list_end (&cur->child_list);
          e = list_next(e))
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
-      // printf("process wait %d\n", t->tid);
       
       if (t->tid == child_tid)
       {
         sema_down (&t->thread_finish);
         list_remove (e);
-        int return_value = t->exit_status;
-        if(t->status == THREAD_BLOCKED)
-          thread_unblock (t);
-        return return_value;
       }
     }
+    
+    // search the list the keeps record of the status of children that exits
+    // before itself
+    for (e = list_begin (&cur->exit_child_list);
+         e != list_end (&cur->exit_child_list);
+         e = list_next(e))
+    {
+      struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
+      
+      if (f->tid == child_tid)
+      {
+        list_remove (e);
+        int return_value = f->status;
+        free(f);
+        return return_value;
+      }
+    }    
   }
   return -1;
 }
@@ -235,29 +259,34 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-
-  sema_up (&cur->thread_finish);
   
+  enum intr_level old_level = intr_disable ();
+
+  // If the parent thread didn't exit before this thread, 
+  // push the return status to its parent's exit_child_list
   if (is_thread (cur->parent))
   {
-   // enum intr_level old_level = intr_disable ();
-   // thread_block();
-   // intr_set_level (old_level);
+    struct exit_status_frame *f = malloc (sizeof (struct exit_status_frame));
+    f->tid = cur->tid;
+    f->status = cur->exit_status;
+    list_push_back (&cur->parent->exit_child_list, &f->elem);
+    list_remove (&cur->child_elem);
   }
-  list_remove (&cur->child_elem);
-    
+
+  // free exit_child_list
   struct list_elem *e;
-
-  for (e = list_begin (&cur->child_list);
-       e != list_end (&cur->child_list);
-       e = list_next(e))
+  while (!list_empty (&cur->exit_child_list))
   {
-    struct thread *t = list_entry (e, struct thread, child_elem);
-    // printf("process wait %d\n", t->tid);
+    e = list_pop_front (&cur->exit_child_list);
+    struct exit_status_frame *f = list_entry(e, struct exit_status_frame, elem);
+    free (f);
+  }
+  intr_set_level (old_level);
+  
+  // inform its parent that it finishes.
+  sema_up (&cur->thread_finish);
+  
 
-    if(t->status == THREAD_BLOCKED)
-      thread_unblock (t);
-  }    
 }
 
 /* Sets up the CPU for running user code in the current

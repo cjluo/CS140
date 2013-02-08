@@ -13,20 +13,9 @@
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 
-/* An open file. */
-struct file 
-  {
-    struct inode *inode;        /* File's inode. */
-    off_t pos;                  /* Current position. */
-    bool deny_write;            /* Has file_deny_write() been called? */
-  };
-
 static void syscall_handler (struct intr_frame *);
 
-static int get_user (const uint8_t *);
-static bool put_user (uint8_t *, uint8_t);
 static inline void check_valid_address (const void *);
-
 
 static int sys_halt (void);
 static int sys_exec (const char *);
@@ -49,6 +38,10 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init (&file_lock);
 }
+/*
+* syscall_handler deal with system calls according to syscal_num,
+* validates address and calls corresponding function 
+*/
 
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
@@ -135,6 +128,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 }
 
+
+/* terminate current user thread and close all files it opened*/
 int
 sys_exit (int status)
 {
@@ -157,12 +152,14 @@ sys_exit (int status)
   return -1;
 }
 
+/* Simply call shutdown_power_off */
 static int
 sys_halt (void)
 {
   shutdown_power_off ();
 }
 
+/* validate address and call process_execute */
 static int
 sys_exec (const char *cmd_line)
 {
@@ -178,6 +175,7 @@ sys_wait (int tid)
   return process_wait(tid);
 }
 
+/* aquire the lock for file system and call filesys_create*/
 static int
 sys_create (const char *file, unsigned initial_size)
 { 
@@ -189,6 +187,7 @@ sys_create (const char *file, unsigned initial_size)
   return (int)return_value;
 }
 
+/* validate address and call filesys_remove */
 static int
 sys_remove (const char *file)
 {
@@ -198,6 +197,10 @@ sys_remove (const char *file)
   return (int)filesys_remove (file);
 }
 
+/* validate address;
+ * aquire lock for file system;
+ * add the opened file to the thread's file list
+*/
 static int
 sys_open (const char *file)
 {
@@ -236,6 +239,10 @@ sys_filesize (int fd)
   return -1;
 }
 
+/* validate address;
+ * if fd is STDIN_FILENO, read from console
+ * else, search the file list with fd and read
+ */
 static int
 sys_read (int fd, void *buffer, unsigned size)
 {
@@ -268,6 +275,10 @@ sys_read (int fd, void *buffer, unsigned size)
   return -1;
 }
 
+/* validate address;
+ * if fd is STDOUT_FILENO, write to console
+ * else, search the file list with fd and write
+ */
 static int
 sys_write (int fd, const void *buffer, unsigned size)
 {
@@ -316,7 +327,7 @@ sys_tell (int fd)
     return file_tell (f->file);
   return -1;
 }
-
+/* close and remove file from this thread's file list */
 static int
 sys_close (int fd)
 {
@@ -335,30 +346,7 @@ sys_close (int fd)
   return -1;
 }
 
-/* Reads a byte at user virtual address UADDR.
-UADDR must be below PHYS_BASE.
-Returns the byte value if successful, -1 if a segfault
-occurred. */
-static int
-get_user (const uint8_t *uaddr)
-{
-  int result;
-  asm ("movl $1f, %0; movzbl %1, %0; 1:"
-       : "=&a" (result) : "m" (*uaddr));
-  return result;
-}
-/* Writes BYTE to user address UDST.
-UDST must be below PHYS_BASE.
-Returns true if successful, false if a segfault occurred. */
-static bool
-put_user (uint8_t *udst, uint8_t byte)
-{
-  int error_code;
-  asm ("movl $1f, %0; movb %b2, %1; 1:"
-       : "=&a" (error_code), "=m" (*udst) : "q" (byte));
-  return error_code != -1;
-}
-
+/* called when we need the next fd */
 static int
 fd_gen (void)
 {
@@ -366,6 +354,7 @@ fd_gen (void)
   return ++fd;
 }
 
+/* fild fd_frame by fd */
 static struct fd_frame *
 fd_to_fd_frame (int fd)
 {
@@ -380,6 +369,7 @@ fd_to_fd_frame (int fd)
   return NULL;
 }
 
+/* validate address */
 static inline void
 check_valid_address (const void *address)
 {
