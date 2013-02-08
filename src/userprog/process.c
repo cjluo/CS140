@@ -32,6 +32,13 @@ struct process_frame
   bool load_success;
 };
 
+struct exit_status_frame
+{
+  tid_t tid;
+  int status;
+  struct list_elem elem;
+};
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -202,12 +209,25 @@ process_wait (tid_t child_tid UNUSED)
       {
         sema_down (&t->thread_finish);
         list_remove (e);
-        int return_value = t->exit_status;
-        if(t->status == THREAD_BLOCKED)
-          thread_unblock (t);
-        return return_value;
+        return t->exit_status;
       }
     }
+    
+    for (e = list_begin (&cur->exit_child_list);
+         e != list_end (&cur->exit_child_list);
+         e = list_next(e))
+    {
+      struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
+      // printf("process wait %d\n", t->tid);
+      
+      if (f->tid == child_tid)
+      {
+        list_remove (e);
+        return f->status;
+      }
+    }
+
+    
   }
   return -1;
 }
@@ -235,29 +255,29 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-
-  sema_up (&cur->thread_finish);
   
+  enum intr_level old_level = intr_disable ();
   if (is_thread (cur->parent))
   {
-    enum intr_level old_level = intr_disable ();
-    thread_block();
-    intr_set_level (old_level);
+    struct exit_status_frame *f = malloc (sizeof (struct exit_status_frame));
+    f->tid = cur->tid;
+    f->status = cur->exit_status;
+    list_push_back (&cur->parent->exit_child_list, &f->elem);
+    list_remove (&cur->child_elem);
   }
-  list_remove (&cur->child_elem);
-    
+
   struct list_elem *e;
-
-  for (e = list_begin (&cur->child_list);
-       e != list_end (&cur->child_list);
-       e = list_next(e))
+  while (!list_empty (&cur->exit_child_list))
   {
-    struct thread *t = list_entry (e, struct thread, child_elem);
-    // printf("process wait %d\n", t->tid);
+    e = list_pop_front (&cur->exit_child_list);
+    struct exit_status_frame *f = list_entry(e, struct exit_status_frame, elem);
+    free (f);
+  }
+  intr_set_level (old_level);
+  
+  sema_up (&cur->thread_finish);
+  
 
-    if(t->status == THREAD_BLOCKED)
-      thread_unblock (t);
-  }    
 }
 
 /* Sets up the CPU for running user code in the current
