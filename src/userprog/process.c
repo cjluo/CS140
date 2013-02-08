@@ -209,7 +209,6 @@ process_wait (tid_t child_tid UNUSED)
       {
         sema_down (&t->thread_finish);
         list_remove (e);
-        return t->exit_status;
       }
     }
     
@@ -223,7 +222,9 @@ process_wait (tid_t child_tid UNUSED)
       if (f->tid == child_tid)
       {
         list_remove (e);
-        return f->status;
+        int return_value = f->status;
+        free(f);
+        return return_value;
       }
     }
 
