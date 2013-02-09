@@ -62,7 +62,22 @@ After the parsing, we will copy the token to the stack by memcpy. After copying
 tokens, we will do alignment and then store the parameters pointers address.
 Then we store the argv and argc.
 
-/* need example to draw out */
+The following example command: `/bin/ls -l foo bar'
+
+Address    Name         Data        Type
+0xbffffff8 argv[0][...] `/bin/ls\0' char[8]
+0xbffffff5 argv[1][...] `-l\0'      char[3]
+0xbffffff1 argv[2][...] `foo\0'     char[4]
+0xbfffffed argv[3][...] `bar\0'     char[4]
+0xbfffffec word-align    0          uint8_t
+0xbfffffe8 argv[4]       0          char *
+0xbfffffe4 argv[3] 0xbffffffc       char *
+0xbfffffe0 argv[2] 0xbffffff8       char *
+0xbfffffdc argv[1] 0xbffffff5       char *
+0xbfffffd8 argv[0] 0xbfffffed       char *
+0xbfffffd4 argv    0xbfffffd8       char **
+0xbfffffd0 argc    4                int
+0xbfffffcc return address 0 void (*) ()
 
 
 
@@ -215,7 +230,9 @@ A very special case in this design is that the fd of the current executable
 is -1. Once the executable is successfully loaded when thread is created, it
 will not close the file immediately after loading since we need to keep that
 file open. So an fd of -1 is assigned to the current executable and it will be
-closed before the process exit where all the open files are flushed. 
+closed before the process exit where all the open files are flushed. In that
+way we could keep the executable file denied from writing since it remains to
+be open throughout of the life time of the process.
 
 
 >> B3: Describe your code for reading and writing user data from the
