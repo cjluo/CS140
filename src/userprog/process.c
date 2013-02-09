@@ -54,6 +54,7 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
+
   strlcpy (fn_copy, file_name, PGSIZE);
 
   struct semaphore load_finish;
@@ -66,14 +67,18 @@ process_execute (const char *file_name)
   
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
+
+  // get thread_name
   char *file_name_buffer = malloc (strlen (file_name) + 1);
   strlcpy(file_name_buffer, file_name, strlen (file_name) + 1);
   char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
+
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
   free(file_name_buffer);
   
   // wait for the finish of loading p_frame
   sema_down (&load_finish);
+
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -111,12 +116,17 @@ start_process (void *process_frame_struct)
   lock_release (&file_lock);
   
   struct thread *child = thread_current ();
-  // add the thread to its parent's child_list
-  list_push_back (&(p_frame->parent->child_list),
+
+
+  if (is_thread (p_frame->parent))
+  {
+    // add the thread to its parent's child_list
+    list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
-  
-  child->parent = p_frame->parent;
-  
+    child->parent = p_frame->parent;
+  }
+
+
   p_frame->load_success = success;
   
   // informs that it finishes loading
@@ -125,6 +135,7 @@ start_process (void *process_frame_struct)
   /* If load failed, quit. */
   if (!success)
   {
+    free(file_name_buffer);
     palloc_free_page (file_name_);
     thread_exit ();
   }
@@ -169,7 +180,6 @@ start_process (void *process_frame_struct)
 
   free(offset);
   free(file_name_buffer);
-
   
   palloc_free_page (file_name_);
   
@@ -281,6 +291,18 @@ process_exit (void)
     struct exit_status_frame *f = list_entry(e, struct exit_status_frame, elem);
     free (f);
   }
+
+  // free file_list
+  while (!list_empty (&cur->file_list))
+  {
+    e = list_pop_front (&cur->file_list);
+    struct fd_frame *f = list_entry(e, struct fd_frame, elem);
+    
+    file_close(f->file);
+    free (f);
+  }
+    
+
   intr_set_level (old_level);
   
   // inform its parent that it finishes.
@@ -487,7 +509,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!fd_open_frame)
     goto done;
   fd_open_frame->file = file;
+
+  // set executables fd to be -1, close it when 
   fd_open_frame->fd = -1;
+
   list_push_back(&thread_current ()->file_list, &fd_open_frame->elem);                                      
   return true;
   // success = true;

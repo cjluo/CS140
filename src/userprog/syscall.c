@@ -136,16 +136,6 @@ sys_exit (int status)
   struct thread *t = thread_current();
   printf("%s: exit(%d)\n", t->name, status);
   
-  struct list_elem *e;
-  while (!list_empty (&t->file_list))
-  {
-    e = list_pop_front (&t->file_list);
-    struct fd_frame *f = list_entry(e, struct fd_frame, elem);
-    
-    file_close(f->file);
-    free (f);
-  }
-    
     
   t->exit_status = status;
   thread_exit();
@@ -257,7 +247,7 @@ sys_read (int fd, void *buffer, unsigned size)
   if (fd == STDIN_FILENO)
   {
     unsigned i;
-    /* what if we get EOF ??? */
+    /* what if we get EOF */
     for (i = 0; i != size; ++i)
       *(char *)(buffer + i) = input_getc ();
     return size;
