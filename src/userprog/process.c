@@ -513,11 +513,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* set executables fd to be -1, close it when */
   fd_open_frame->fd = -1;
 
-  list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);                                      
+  list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);
   return true;
 
-  
-  
  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);

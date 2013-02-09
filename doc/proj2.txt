@@ -1,16 +1,16 @@
-  	     +--------------------------+
-         | CS 140	                  |
-		     | PROJECT 2: USER PROGRAMS	|
-		     | DESIGN DOCUMENT        	|
-		     +--------------------------+
+             +--------------------------+
+             | CS 140                   |
+             | PROJECT 2: USER PROGRAMS |
+             | DESIGN DOCUMENT          |
+             +--------------------------+
 
 ---- GROUP ----
 
 >> Fill in the names and email addresses of your group members.
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Chenjie Luo <cjluo@stanford.edu>
+Le Yu <billyue@stanford.edu>
+Tianhe Wang <tianhe@stanford.edu>
 
 ---- PRELIMINARIES ----
 
@@ -21,16 +21,17 @@ FirstName LastName <email@domain.example>
 >> each member of your team. If some team members contributed significantly
 >> more or less than others (e.g. 2x), indicate that here.
 
-FirstName LastName: contribution
-FirstName LastName: contribution
-FirstName LastName: contribution
+Tianhe Wang: Synchronization, Denying write
+Chenjie Luo: Safe Memory Access, System Calls, 
+Le Yu: Argument Passing, Process Exit Messages
+
 
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
 
-			   ARGUMENT PASSING
-			   ================
+               ARGUMENT PASSING
+               ================
 
 ---- DATA STRUCTURES ----
 
@@ -38,22 +39,89 @@ FirstName LastName: contribution
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+None.
+
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
+1. Argument parsing
+
+We extend process_execute() so that it takes in its argument. Then it divides 
+it into words at spaces. We use strtok_r() to parse the arguments, where we 
+split the parameters by spaces. In the implementation, multiple spaces within a
+command line are equivalent to a single space. For example, execute("grep foo 
+bar") should parse the program name as ¡°grep¡±, while with two arguments foo 
+and bar. The first word will be the thread name for create_thread (); while the
+rest words are the arguments for the program. 
+
+After the parsing, we will copy the token to the stack by memcpy. After copying
+tokens, we will do alignment and then store the parameters pointers address.
+Then we store the argv and argc.
+
+/* need example to draw out */
+
+
+
+2. Arrange for the elements of argv[]
+
+In our implementation, we first break the command into words :"grep", "foo", 
+"bar". Then we place the words at the top of the stack. Since we will refer to
+the arguments by pointers, so the order of the parameters doesn't matter. So we
+push the words once we have the word splitted. In our example, we first push 
+"grep", "foo", and then "bar". In the meantime, we record the pointer to these
+arguments.
+
+argv[] records the address of all the parameters, and the order of argv is that
+last argument will be pushed firstly, while the first argument is pushed
+lastly. Therefore, when we read the first three parameters, we can simply get
+by *(esp+1), *(esp+2), *(esp+3).
+
+
+3. Avoid overflowing
+
+We limit a length of the command line arguments. We choose the limit the 
+arguments to be within a single page (4 kB). We also verify the validity of 
+pointer provided by user, and then we dereference it. Therefore, each time we 
+need to use *esp, we will check with the function check_valid_address().  This
+function contains both is_user_vaddr() and pagedir_get_page(). It will call
+sys_exit(-1) if the address is not valid.
+
+
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
+
+strtok() is not reentrant so we cannot use it for threaded applications. 
+Because it uses a static buffer while parsing, stores the temporary variables
+globally, and then reuse those temporary values each time the function is 
+called. On the other hand, strtok_r will save to the local buffer.
+
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
-			     SYSTEM CALLS
-			     ============
+1. Kernel thread has less work to do. In unix, shell separate the command; 
+while in pintos, kernel thread needs to separate the commands. In pintos the 
+kernel thread also needs to locate the file during initialization.
+2. Shell can stop starting a thread if commands have bad arguments. In pintos, 
+we first start thread and then check the arguments.
+3. In Unix approach, the parsing errors will influence the shell, which is the 
+user process; while in pintos, the failures of parsing will influence kernel 
+thread.
+4. Unix shell support more advanced argument parsing, e.g. ¡°\t¡±, redirection 
+or aliases; while in pintos, we only support space " ".
+
+
+
+
+
+                 SYSTEM CALLS
+                 ============
 
 ---- DATA STRUCTURES ----
 
@@ -61,14 +129,130 @@ FirstName LastName: contribution
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+Changed Data Structure
+**************************
+
+----thread/thread.h----
+struct thread
+  {
+    ¡­
+    #ifdef USERPROG
+    ¡­
+    struct list file_list;        /* A file list recording the fd_frame */
+                                  /* information */
+    struct list child_list;       /* A list recording the child thread that */
+                                  /* it generated */
+    struct list exit_child_list;  /* A list recording the child thread¡¯s */
+                                  /* exit status if the child has */
+                                  /* finished and exit before father calls */
+                                  /* wait */
+
+    struct list_elem child_elem;  /* list_elem for child_list */
+    struct thread *parent;        /* The pointer to its parent thread */
+    struct semaphore thread_finish;  /* semaphore for synchronization when */
+                                     /* the thread is finished */
+    int exit_status;              /* Caching the exit status of this thread */
+    #endif
+    ...
+  };
+
+
+----userprog/syscall.h----
+struct lock file_lock;            /* Used for file_system operation */
+                                  /* synchronization */
+struct fd_frame                   /* fd frame used in thread*->file_list */
+  {
+    int fd;                       /* fd number */
+    struct file *file;            /* File pointer */
+    struct list_elem elem;        /* list_elem for thread*->file_list */
+  };
+
+
+----userprog/process.c----
+struct process_frame       /* This frame is used as void *aux passed down */
+                           /* from parent thread to child thread and will be */
+                           /* used in function start_process */
+{
+  struct semaphore *load_finish;   /* Semaphore for load finish */
+  void *file_name_;                /* Command line as in process_exec */
+  struct thread *parent;           /* Parent thread */
+  bool load_success;               /* If the load is successful or not */
+};
+
+struct exit_status_frame           /* This frame is used to record the exit */
+                                   /* status of a child so that child */
+                                   /* thread¡¯s exit status could be cached */
+                                   /* even when the thread has been freed */
+{
+  tid_t tid;                       /* Child thread tid */
+  int status;                      /* Child thread exit status */
+  struct list_elem elem;           /* list_elem for thread*->exit_child_list */
+};
+
+
+
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
 
 ---- ALGORITHMS ----
+File descriptors are paired with open file* file in struct fd_frame (see 
+section above). When file is successfully opened in a kernel thread, a new 
+fd_frame will be allocated in the heap using malloc function. Inside the 
+fd_frame, a new fd number will be generated increasingly from 2 using fd_gen().
+
+static int
+fd_gen (void)
+{
+  static int fd = 1;
+  return ++fd;
+}
+
+The fd generation is unique per process. Different processes could open the 
+same file with different fd generated.
+
+A very special case in this design is that the fd of the current executable
+is -1. Once the executable is successfully loaded when thread is created, it
+will not close the file immediately after loading since we need to keep that
+file open. So an fd of -1 is assigned to the current executable and it will be
+closed before the process exit where all the open files are flushed. 
+
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
+
+In this project, we choose the first version accessing the user data where the
+user address is first checked then dereferenced. The following routine is how
+we checked the address:
+
+1) A static inline void check_valid_address (const void *address) function is 
+written to check two conditions
+
+a. address < PHY_BASE: is_user_vaddr (address)
+b. There is a valid page allocated for that address: pagedir_get_page 
+(t->pagedir, address)
+
+If one of the conditions does not satisfy, the thread will call sys_exit (-1)
+immediately
+
+2)  In syscall_handler, the following addresses are checked:
+a. esp
+b. In the switch table of syscall_num, the corresponding input argument 
+addresses (esp + 1, esp + 2, esp + 3) are checked depends on how many arguments
+that the system call needs.
+c. In each system_call handle function, if the input argument is an address, 
+we also need to check that.
+
+3) There are several page_faults occur even it could as check_valid_address. We
+handle that in the exception.c, static void page_fault (struct intr_frame *f):
+
+  if (not_present || (is_kernel_vaddr (fault_addr) && user))
+    sys_exit (-1);
+
+Which means if it is an not present page fault or the user is accessing 
+kernel¡¯s address in the runtime, the error is catched and a sys_exit is 
+called immediately.
+
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
@@ -77,8 +261,53 @@ FirstName LastName: contribution
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
 
+In our current implementation, we check twice. Once is for from the beginning 
+of the buffer address and another is the end of the buffer. Since the worst 
+case is that the buffer is separated into two pages, we need check twice.
+
+When copying 2 bytes of data, it is similar. Since it is also possible that one
+byte of the data to be at the ending of the page and the another byte to be the
+beginning of another byte
+
+The least possible times for checking is once if the second approach is 
+adopted. The default situation is that it does not check the address unless 
+error happens. Since once the error occurs, the process will exit immediately 
+so no second checking will be there.
+
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
+
+The wait system call directly calls process_wait.  When the thread calls wait, 
+there are generally three situations:
+
+1) The child thread has not call exit yet
+2) The child thread has exited
+3) The tid is not a child thread of the parent
+
+1) A semaphore called thread_finish has been implemented in in each thread and 
+initialized as 0. When the parent call wait (child_tid), it will search its 
+child_list according to this tid. If it finds one, then the parent call 
+sema_down(&child->thread_finish) to wait for the child to be finished until the
+child calls sema_up when it is finished. The the parent thread will search its 
+exit_child_list to find the exit_status. The reason why we cannot get the 
+exit_status immediately when the parent thread is unblocked from the sema_down 
+is because at that time the kernal space of the child may or may not be freed 
+since we cannot garantee that the child thread will yield immediately after it 
+calls sema_up. The looking up of the exit_child_list is the same as condition 
+2)
+
+2) The child has been exited. Before its memory space being flushed, it will 
+cache its exit status in heap as a struct of exit_status_frame (see above) 
+linked to the exit_child_list of its parent. So when parent call process_wait,
+it is indeed looking up its exit_child_list and return the found exit_status. 
+At the same time, the record is removed from the list so that it will not be 
+found twice.
+
+3) When the tid could not been matched in the exit_child_list, we return -1.
+
+Since the element of exit_child_list is generated in the heap, when the parent
+thread exits, it frees all the list space.
+
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -94,12 +323,66 @@ FirstName LastName: contribution
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
 
+1) For the error checking function, we are trying to unify all the condition so
+that they are put into one single function ¡°static inline void 
+check_valid_address (const void *address)¡± (see B3)
+2) Since we choose the easy check-then-dereference route, the checking overhead
+could be optimized but could not be fully eliminated. That¡¯s why we use inline
+function to make it faster.
+3) Careful checks are necessary; every unchecked user space address may fail.
+4) All the resources are freed immediately when a fault is detected. Also when 
+the process call sys_exit(int), we close all the files opened by that list and 
+free all the space allocated in the heap by that thread.
+5) Some additional faults are handled at exception.c to save the complex 
+checking overhead.
+6) The most important one is to BE CAREFULL before calling sys_exit when an 
+error is catched. That really depends on the programmer instead of the program 
+itself. 
+
+
 ---- SYNCHRONIZATION ----
 
 >> B7: The "exec" system call returns -1 if loading the new executable
 >> fails, so it cannot return before the new executable has completed
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
+
+The art of synchronization in this implementation is that we use the void *aux 
+that parent thread parse to child thread to create as a bridge between parent 
+thread (process_exec) and child thread (start_process). The *aux frame is 
+defined as:
+
+struct process_frame     /* This frame is used as void *aux passed down from */
+                         /* parent thread to child thread and will be used */ 
+                         /* in function start_process */
+{
+  struct semaphore *load_finish;       /* Semaphore for load finish */
+  void *file_name_;                    /* Command line as in process_exec */
+  struct thread *parent;               /* Parent thread */
+  bool load_success;                   /* If the load is successful or not */
+};
+
+1) struct semaphore *load_finish:
+load finish is a semaphore created and initialized in process_exec() before 
+the thread has been created. After the parent thread calls thread_create(), 
+it will call sema_down(&load_finish) immediately and be blocked until the 
+child process finished loading and call sema_up(&process_frame->load_finish).
+
+2) struct thread *parent
+This pointer will be stored in the child thread->parent. So that each child 
+will know who is its parent.
+
+3) bool load_success
+Once the child process finishes loading (before sema_up), it will cache whether
+it is successful in this bool and shared with the parent (since this frame is 
+in the calling stack of the parent¡¯s process_execute()). By reading this bool 
+after the parent process being recovered from sema_down, it could know if its 
+child process is successfully loaded.
+
+This implementation does not involve any interation of the all_list. All the 
+information is parsed directly through this ¡°bridge¡± between parent and child
+process. No searching for tid is needed at all!
+
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -108,19 +391,60 @@ FirstName LastName: contribution
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
 
+Please see the answer to B5
+
+To the last 4 questions:
+
+1) P terminates without waiting:
+It will free the information stored in its exit_child_list. All the other 
+memory are in the kernel stack of P so it will be freed automatically in 
+thread_exit() function.
+2) P terminates before C exits:
+If P does not call waiting, it will terminates before C exits, which is 
+legitimate. Otherwise it will wait as explained B5. 1).
+3) P terminates after C exits:
+It is the same as C terminates before P exits, please see B5. 2).
+4) Since in our implementation, we only read exit_status from exit_child_list 
+which will be freed by P only, so generally no special case. The only special 
+case is that the malloc allocation of the struct exit_status_frame may be 
+failed where we need to call sys_exit().
+
 ---- RATIONALE ----
 
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
+We verify the user pointer before dereference. It is much easier. All we need 
+is to ensure that it is within user¡¯s space below PHYS_BASE. Second is ensure 
+that the space is mapped by pagedir_get_page. Third is make sure safe memory 
+access.
+
+On the other hand, fault handler in userprog/exception might need to think of 
+different exception cases, and we need to update the page_fault code. So this 
+updates might have influence on other places. Since there is uncertainty in 
+this method, we just use the first one.
+
+If you need detailed information, please ready B3.
+
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
+
+Advantages: Kernel thread has access to all the file descriptors. Also our 
+implementation could ensure that file descriptors are independent in each 
+kernel thread.
+
+Disadvantages: Those file struct cost the kernel thread memory as the same file
+will be opened across different processes and will be duplicated in each 
+process¡¯s file_list
 
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
-			   SURVEY QUESTIONS
-			   ================
+We do not change the mapping.
+
+
+               SURVEY QUESTIONS
+               ================
 
 Answering these questions is optional, but it will help us improve the
 course in future quarters.  Feel free to tell us anything you
@@ -130,15 +454,22 @@ the quarter.
 
 >> In your opinion, was this assignment, or any one of the three problems
 >> in it, too easy or too hard?  Did it take too long or too little time?
+Tasks are reasonably hard.
 
 >> Did you find that working on a particular part of the assignment gave
 >> you greater insight into some aspect of OS design?
+Memory management is important so that the OS can scale well with number of 
+concurrent threads. This is a problem that took us fair amount of time.
+
 
 >> Is there some particular fact or hint we should give students in
 >> future quarters to help them solve the problems?  Conversely, did you
 >> find any of our guidance to be misleading?
+On system call sys_wait(), if some hints on the organization between parent 
+thread and children threads are given, it would be easier to implement.
 
 >> Do you have any suggestions for the TAs to more effectively assist
 >> students, either for future quarters or the remaining projects?
 
 >> Any other comments?
+

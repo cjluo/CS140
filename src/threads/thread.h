@@ -144,7 +144,6 @@ void thread_block (void);
 void thread_unblock (struct thread *);
 
 struct thread *thread_current (void);
-struct thread *tid_to_thread (int);
 tid_t thread_tid (void);
 const char *thread_name (void);
 

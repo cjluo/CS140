@@ -344,19 +344,6 @@ thread_current (void)
   return t;
 }
 
-struct thread *
-tid_to_thread (tid_t tid)
-{
-  struct list_elem *e;
-  for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
-  {
-    struct thread *t = list_entry (e, struct thread, allelem);
-    if (t->tid == tid)
-      return t;
-  }
-  return NULL;
-}
-
 /* Returns the running thread's tid. */
 tid_t
 thread_tid (void) 
@@ -763,7 +750,7 @@ recent_cpu_update (struct thread *t, void *aux UNUSED)
     /* update recent_cpu and then update recent_threads */
     /* recent_cpu = (2*load_avg)/(2*load_avg+1) * recent_cpu + nice */
     t->recent_cpu = f_add (f_mul (ratio, t->recent_cpu),
-                                int_to_f (t->nice));
+                           int_to_f (t->nice));
 }
 
 /* threads in all_list will be updated every seconds. */
@@ -777,8 +764,8 @@ all_threads_update (void)
  
     /* update load_avg = (59/60)*load_avg + (1/60)*ready_threads */
     load_avg = f_add (f_mul (f_div (int_to_f (59), int_to_f (60)), load_avg),
-                        f_mul (f_div (int_to_f (1), int_to_f (60)), 
-                               int_to_f (ready_threads)));
+                      f_mul (f_div (int_to_f (1), int_to_f (60)), 
+                             int_to_f (ready_threads)));
 
     /* update recent cpu */
     thread_foreach (recent_cpu_update, NULL);
