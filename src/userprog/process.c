@@ -70,11 +70,11 @@ process_execute (const char *file_name)
 
   // get thread_name
   char *file_name_buffer = malloc (strlen (file_name) + 1);
-  strlcpy(file_name_buffer, file_name, strlen (file_name) + 1);
+  strlcpy (file_name_buffer, file_name, strlen (file_name) + 1);
   char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
 
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
-  free(file_name_buffer);
+  free (file_name_buffer);
   
   // wait for the finish of loading p_frame
   sema_down (&load_finish);
@@ -96,7 +96,7 @@ start_process (void *process_frame_struct)
   
   char *token, *save_ptr;
   char *file_name_buffer = malloc (strlen (file_name_) + 1);
-  strlcpy(file_name_buffer, file_name_, strlen (file_name_) + 1);
+  strlcpy (file_name_buffer, file_name_, strlen (file_name_) + 1);
   char *file_name = strtok_r (file_name_, " ", &save_ptr);
   struct intr_frame if_;
   bool success;
@@ -135,7 +135,7 @@ start_process (void *process_frame_struct)
   /* If load failed, quit. */
   if (!success)
   {
-    free(file_name_buffer);
+    free (file_name_buffer);
     palloc_free_page (file_name_);
     thread_exit ();
   }
@@ -155,14 +155,14 @@ start_process (void *process_frame_struct)
   for (token = strtok_r (file_name_buffer, " ", &save_ptr); token != NULL;
        token = strtok_r (NULL, " ", &save_ptr))
   {
-    if_esp -= (strlen(token) + 1);
+    if_esp -= (strlen (token) + 1);
     strlcpy (if_esp, token, strlen (token) + 1);
     offset[i] = (uint32_t) if_esp;
     i++;
   }
 
   // alignment 
-  while (((uint32_t)if_esp) % 4)
+  while (((uint32_t) if_esp) % 4)
     *(--if_esp) = 0;
 
   uint32_t *if_esp_32 = (uint32_t *) if_esp;
@@ -178,8 +178,8 @@ start_process (void *process_frame_struct)
 
   if_.esp = (void *) if_esp_32;
 
-  free(offset);
-  free(file_name_buffer);
+  free (offset);
+  free (file_name_buffer);
   
   palloc_free_page (file_name_);
   
@@ -230,7 +230,7 @@ process_wait (tid_t child_tid UNUSED)
     // before itself
     for (e = list_begin (&cur->exit_child_list);
          e != list_end (&cur->exit_child_list);
-         e = list_next(e))
+         e = list_next (e))
     {
       struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
       
@@ -238,7 +238,7 @@ process_wait (tid_t child_tid UNUSED)
       {
         list_remove (e);
         int return_value = f->status;
-        free(f);
+        free (f);
         return return_value;
       }
     }    
@@ -288,7 +288,7 @@ process_exit (void)
   while (!list_empty (&cur->exit_child_list))
   {
     e = list_pop_front (&cur->exit_child_list);
-    struct exit_status_frame *f = list_entry(e, struct exit_status_frame, elem);
+    struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
     free (f);
   }
 
@@ -296,9 +296,9 @@ process_exit (void)
   while (!list_empty (&cur->file_list))
   {
     e = list_pop_front (&cur->file_list);
-    struct fd_frame *f = list_entry(e, struct fd_frame, elem);
+    struct fd_frame *f = list_entry (e, struct fd_frame, elem);
     
-    file_close(f->file);
+    file_close (f->file);
     free (f);
   }
     
@@ -513,7 +513,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   // set executables fd to be -1, close it when 
   fd_open_frame->fd = -1;
 
-  list_push_back(&thread_current ()->file_list, &fd_open_frame->elem);                                      
+  list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);                                      
   return true;
   // success = true;
   

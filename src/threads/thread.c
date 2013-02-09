@@ -188,12 +188,12 @@ thread_tick (void)
 
     /* Update recent_cpu for each thread every TIMER_REQ */
     if (timer_ticks () % TIMER_FREQ == 0)
-      all_threads_update();
+      all_threads_update ();
   }
     
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)    
-    yield_if_lower_priority();
+    yield_if_lower_priority ();
 }
 
 /* Prints thread statistics. */
@@ -299,7 +299,7 @@ thread_unblock (struct thread *t)
   ready_list_size++;
   t->status = THREAD_READY;
 
-  yield_if_lower_priority();
+  yield_if_lower_priority ();
   intr_set_level (old_level);
 }
 
@@ -348,7 +348,7 @@ struct thread *
 tid_to_thread (tid_t tid)
 {
   struct list_elem *e;
-  for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next(e))
+  for (e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
   {
     struct thread *t = list_entry (e, struct thread, allelem);
     if (t->tid == tid)
@@ -380,7 +380,7 @@ thread_exit (void)
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
-  list_remove (&thread_current()->allelem);
+  list_remove (&thread_current ()->allelem);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -445,7 +445,7 @@ thread_set_priority (int new_priority)
 	intr_set_level (old_level);
 	  
     if (!is_rising)
-      yield_if_lower_priority();
+      yield_if_lower_priority ();
   }
 }
 
@@ -646,7 +646,7 @@ next_thread_to_run (void)
   else
   {
     struct list_elem* e = list_min (&ready_list, priority_compare, NULL);
-    list_remove(e);
+    list_remove (e);
     ready_list_size--;
     return list_entry (e, struct thread, elem);
   }
@@ -754,7 +754,7 @@ priority_compare (const struct list_elem *a_, const struct list_elem *b_,
 
 /* update recent_cpu for each thread, every second */
 static void
-recent_cpu_update(struct thread *t, void *aux UNUSED)
+recent_cpu_update (struct thread *t, void *aux UNUSED)
 {
 
     int32_t ratio_up = f_mul (int_to_f (2), load_avg);

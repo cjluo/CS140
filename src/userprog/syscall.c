@@ -46,7 +46,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  uint32_t *esp = (uint32_t *)f->esp;
+  uint32_t *esp = (uint32_t *) f->esp;
   check_valid_address (esp);
 
   int syscall_num = *esp;
@@ -133,7 +133,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 int
 sys_exit (int status)
 {
-  struct thread *t = thread_current();
+  struct thread *t = thread_current ();
   printf("%s: exit(%d)\n", t->name, status);
   
     
@@ -172,9 +172,9 @@ sys_create (const char *file, unsigned initial_size)
   //test address
   check_valid_address (file);
   lock_acquire (&file_lock);
-  bool return_value = filesys_create(file, initial_size);
+  bool return_value = filesys_create (file, initial_size);
   lock_release (&file_lock);
-  return (int)return_value;
+  return (int) return_value;
 }
 
 /* validate address and call filesys_remove */
@@ -184,7 +184,7 @@ sys_remove (const char *file)
   //test address
   check_valid_address (file);
   
-  return (int)filesys_remove (file);
+  return (int) filesys_remove (file);
 }
 
 /* validate address;
@@ -198,14 +198,14 @@ sys_open (const char *file)
   check_valid_address (file);
 
   lock_acquire (&file_lock);
-  struct file *f = filesys_open(file);
+  struct file *f = filesys_open (file);
   lock_release (&file_lock);
   if (!f)
     return -1;
 
   
   struct fd_frame *fd_open_frame = (struct fd_frame *) malloc (
-                                    sizeof(struct fd_frame));
+                                    sizeof (struct fd_frame));
   if(!fd_open_frame)
   {
     lock_acquire (&file_lock);
@@ -215,7 +215,7 @@ sys_open (const char *file)
   }
   fd_open_frame->file = f;
   fd_open_frame->fd = fd_gen ();
-  list_push_back(&thread_current ()->file_list, &fd_open_frame->elem);
+  list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);
   
   return fd_open_frame->fd;
 }
@@ -225,7 +225,7 @@ sys_filesize (int fd)
 {
   struct fd_frame *f = fd_to_fd_frame (fd);
   if (f)
-    return (int)file_length (f->file);
+    return (int) file_length (f->file);
   return -1;
 }
 
@@ -253,13 +253,13 @@ sys_read (int fd, void *buffer, unsigned size)
     return size;
   }
   
-  struct fd_frame *f = fd_to_fd_frame(fd);
+  struct fd_frame *f = fd_to_fd_frame (fd);
   if (f)
   {
     lock_acquire (&file_lock);
     off_t return_value = file_read (f->file, buffer, size);
     lock_release (&file_lock);
-    return (int)return_value;
+    return (int) return_value;
   }
   
   return -1;
@@ -282,7 +282,7 @@ sys_write (int fd, const void *buffer, unsigned size)
   
   if (fd == STDOUT_FILENO)
   {
-    putbuf(buffer, size);
+    putbuf (buffer, size);
     return size;
   }
   else
@@ -293,7 +293,7 @@ sys_write (int fd, const void *buffer, unsigned size)
       lock_acquire (&file_lock);    
       int return_value = file_write (f->file, buffer, size);
       lock_release (&file_lock);
-      return (int)return_value;
+      return (int) return_value;
     }
   }
   return -1;
@@ -324,13 +324,13 @@ sys_close (int fd)
   if (fd < 2)
     return -1;
   
-  struct fd_frame *f = fd_to_fd_frame(fd);
+  struct fd_frame *f = fd_to_fd_frame (fd);
   if (f)
   {
     lock_acquire (&file_lock);
     file_close (f->file);
     lock_release (&file_lock);
-    list_remove(&f->elem);
+    list_remove (&f->elem);
     free (f);
   }
   return -1;
@@ -348,7 +348,7 @@ fd_gen (void)
 static struct fd_frame *
 fd_to_fd_frame (int fd)
 {
-  struct list *l = &thread_current() -> file_list;
+  struct list *l = &thread_current () -> file_list;
   struct list_elem *e;
   for (e = list_begin (l); e != list_end (l); e = list_next (e))
   {
