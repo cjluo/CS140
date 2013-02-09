@@ -68,7 +68,7 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   char *save_ptr;
 
-  // get thread_name
+  /* get thread_name */
   char *file_name_buffer = malloc (strlen (file_name) + 1);
   strlcpy (file_name_buffer, file_name, strlen (file_name) + 1);
   char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
@@ -76,7 +76,7 @@ process_execute (const char *file_name)
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, &p_frame);
   free (file_name_buffer);
   
-  // wait for the finish of loading p_frame
+  /* wait for the finish of loading p_frame */
   sema_down (&load_finish);
 
   if (tid == TID_ERROR)
@@ -110,7 +110,7 @@ start_process (void *process_frame_struct)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   
-  // lock filesys before finish loading
+  /* lock filesys before finish loading */
   lock_acquire (&file_lock);
   success = load (file_name, &if_.eip, &if_.esp);
   lock_release (&file_lock);
@@ -120,7 +120,7 @@ start_process (void *process_frame_struct)
 
   if (is_thread (p_frame->parent))
   {
-    // add the thread to its parent's child_list
+    /* add the thread to its parent's child_list */
     list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
     child->parent = p_frame->parent;
@@ -129,7 +129,7 @@ start_process (void *process_frame_struct)
 
   p_frame->load_success = success;
   
-  // informs that it finishes loading
+  /* informs that it finishes loading */
   sema_up (load_finish);
   
   /* If load failed, quit. */
@@ -161,7 +161,7 @@ start_process (void *process_frame_struct)
     i++;
   }
 
-  // alignment 
+  /* alignment */
   while (((uint32_t) if_esp) % 4)
     *(--if_esp) = 0;
 
@@ -210,9 +210,9 @@ process_wait (tid_t child_tid UNUSED)
     struct thread *cur = thread_current ();
     struct list_elem *e;
 
-    // search the list of current children to find the children to wait,
-    // then wait for its finish semaphore
-    // and remove it from the list.
+    /* search the list of current children to find the children to wait,
+       then wait for its finish semaphore
+       and remove it from the list. */
     for (e = list_begin (&cur->child_list);
          e != list_end (&cur->child_list);
          e = list_next(e))
@@ -226,8 +226,8 @@ process_wait (tid_t child_tid UNUSED)
       }
     }
     
-    // search the list the keeps record of the status of children that exits
-    // before itself
+    /* search the list the keeps record of the status of children that exits
+       before itself */
     for (e = list_begin (&cur->exit_child_list);
          e != list_end (&cur->exit_child_list);
          e = list_next (e))
@@ -272,8 +272,8 @@ process_exit (void)
   
   enum intr_level old_level = intr_disable ();
 
-  // If the parent thread didn't exit before this thread, 
-  // push the return status to its parent's exit_child_list
+  /* If the parent thread didn't exit before this thread, 
+     push the return status to its parent's exit_child_list */
   if (is_thread (cur->parent))
   {
     struct exit_status_frame *f = malloc (sizeof (struct exit_status_frame));
@@ -283,7 +283,7 @@ process_exit (void)
     list_remove (&cur->child_elem);
   }
 
-  // free exit_child_list
+  /* free exit_child_list */
   struct list_elem *e;
   while (!list_empty (&cur->exit_child_list))
   {
@@ -292,7 +292,7 @@ process_exit (void)
     free (f);
   }
 
-  // free file_list
+  /* free file_list */
   while (!list_empty (&cur->file_list))
   {
     e = list_pop_front (&cur->file_list);
@@ -305,7 +305,7 @@ process_exit (void)
 
   intr_set_level (old_level);
   
-  // inform its parent that it finishes.
+  /* inform its parent that it finishes. */
   sema_up (&cur->thread_finish);
   
 
@@ -510,12 +510,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   fd_open_frame->file = file;
 
-  // set executables fd to be -1, close it when 
+  /* set executables fd to be -1, close it when */
   fd_open_frame->fd = -1;
 
   list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);                                      
   return true;
-  // success = true;
+
   
   
  done:

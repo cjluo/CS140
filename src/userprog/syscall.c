@@ -161,7 +161,6 @@ sys_exec (const char *cmd_line)
 static int
 sys_wait (int tid)
 {
-  // printf("\nwait %d\n", tid);
   return process_wait(tid);
 }
 
@@ -169,7 +168,7 @@ sys_wait (int tid)
 static int
 sys_create (const char *file, unsigned initial_size)
 { 
-  //test address
+  /* test address */
   check_valid_address (file);
   lock_acquire (&file_lock);
   bool return_value = filesys_create (file, initial_size);
@@ -181,7 +180,7 @@ sys_create (const char *file, unsigned initial_size)
 static int
 sys_remove (const char *file)
 {
-  //test address
+  /* test address */
   check_valid_address (file);
   
   return (int) filesys_remove (file);
@@ -194,7 +193,7 @@ sys_remove (const char *file)
 static int
 sys_open (const char *file)
 {
-  //test address
+  /* test address */
   check_valid_address (file);
 
   lock_acquire (&file_lock);

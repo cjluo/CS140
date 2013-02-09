@@ -354,7 +354,6 @@ tid_to_thread (tid_t tid)
     if (t->tid == tid)
       return t;
   }
-  // printf ("No thread found tid %d\n", tid);
   return NULL;
 }
 
