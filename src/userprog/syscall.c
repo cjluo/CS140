@@ -152,6 +152,9 @@ static int
 sys_exec (const char *cmd_line)
 {
   check_valid_address (cmd_line);
+  /* avoid argument overflow */
+  if (strlen (cmd_line) + 1 > 4096)
+    sys_exit (-1);
   int tid = process_execute (cmd_line);
   return tid;
 }

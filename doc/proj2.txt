@@ -426,6 +426,11 @@ which will be freed by P only, so generally no special case. The only special
 case is that the malloc allocation of the struct exit_status_frame may be 
 failed where we need to call sys_exit().
 
+Besides, we wrap each list operation of the child_list and exit_child_list
+which are written by child processes and read by parent processed with
+interrupt disabled. This would ensure no race condition between these list
+operations.
+
 ---- RATIONALE ----
 
 >> B9: Why did you choose to implement access to user memory from the
@@ -457,7 +462,10 @@ process¡¯s file_list
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
-We do not change the mapping.
+In our design, we use tid directly instead of pid since each process execution
+creates only one kernel thread and there is no need to distinguish pid and tid.
+If the user want to create a program with multi-kernel-thread then it will be
+necessary to introduce pid.
 
 
                SURVEY QUESTIONS
