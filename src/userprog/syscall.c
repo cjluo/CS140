@@ -350,12 +350,17 @@ fd_to_fd_frame (int fd)
 {
   struct list *l = &thread_current () -> file_list;
   struct list_elem *e;
+  enum intr_level old_level = intr_disable ();
   for (e = list_begin (l); e != list_end (l); e = list_next (e))
   {
     struct fd_frame *f = list_entry (e, struct fd_frame, elem);
     if (f->fd == fd)
+    {
+      intr_set_level (old_level);
       return f;
+    }
   }
+  intr_set_level (old_level);
   return NULL;
 }
 
