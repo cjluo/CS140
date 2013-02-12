@@ -135,8 +135,6 @@ sys_exit (int status)
 {
   struct thread *t = thread_current ();
   printf("%s: exit(%d)\n", t->name, status);
-  
-    
   t->exit_status = status;
   thread_exit();
   return -1;
@@ -214,8 +212,9 @@ sys_open (const char *file)
   }
   fd_open_frame->file = f;
   fd_open_frame->fd = fd_gen ();
+  enum intr_level old_level = intr_disable ();
   list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);
-  
+  intr_set_level (old_level);
   return fd_open_frame->fd;
 }
 
@@ -329,7 +328,9 @@ sys_close (int fd)
     lock_acquire (&file_lock);
     file_close (f->file);
     lock_release (&file_lock);
+    enum intr_level old_level = intr_disable ();
     list_remove (&f->elem);
+    intr_set_level (old_level);
     free (f);
   }
   return -1;

@@ -121,9 +121,11 @@ start_process (void *process_frame_struct)
   if (is_thread (p_frame->parent))
   {
     /* add the thread to its parent's child_list */
+    enum intr_level old_level = intr_disable ();
     list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
     child->parent = p_frame->parent;
+    intr_set_level (old_level);
   }
 
 
@@ -213,6 +215,7 @@ process_wait (tid_t child_tid UNUSED)
     /* search the list of current children to find the children to wait,
        then wait for its finish semaphore
        and remove it from the list. */
+    enum intr_level old_level = intr_disable ();
     for (e = list_begin (&cur->child_list);
          e != list_end (&cur->child_list);
          e = list_next(e))
@@ -221,11 +224,13 @@ process_wait (tid_t child_tid UNUSED)
       
       if (t->tid == child_tid)
       {
+        intr_set_level (old_level);
         sema_down (&t->thread_finish);
+        old_level = intr_disable ();
         list_remove (e);
       }
     }
-    
+
     /* search the list the keeps record of the status of children that exits
        before itself */
     for (e = list_begin (&cur->exit_child_list);
@@ -239,10 +244,13 @@ process_wait (tid_t child_tid UNUSED)
         list_remove (e);
         int return_value = f->status;
         free (f);
+        intr_set_level (old_level);
         return return_value;
       }
     }    
+    intr_set_level (old_level);
   }
+  
   return -1;
 }
 
