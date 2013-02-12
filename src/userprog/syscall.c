@@ -212,9 +212,7 @@ sys_open (const char *file)
   }
   fd_open_frame->file = f;
   fd_open_frame->fd = fd_gen ();
-  enum intr_level old_level = intr_disable ();
   list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);
-  intr_set_level (old_level);
   return fd_open_frame->fd;
 }
 
@@ -328,9 +326,7 @@ sys_close (int fd)
     lock_acquire (&file_lock);
     file_close (f->file);
     lock_release (&file_lock);
-    enum intr_level old_level = intr_disable ();
     list_remove (&f->elem);
-    intr_set_level (old_level);
     free (f);
   }
   return -1;
@@ -350,17 +346,12 @@ fd_to_fd_frame (int fd)
 {
   struct list *l = &thread_current () -> file_list;
   struct list_elem *e;
-  enum intr_level old_level = intr_disable ();
   for (e = list_begin (l); e != list_end (l); e = list_next (e))
   {
     struct fd_frame *f = list_entry (e, struct fd_frame, elem);
     if (f->fd == fd)
-    {
-      intr_set_level (old_level);
       return f;
-    }
   }
-  intr_set_level (old_level);
   return NULL;
 }
 
