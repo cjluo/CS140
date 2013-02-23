@@ -12,6 +12,7 @@
 #include "devices/input.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include <string.h>
 
 static void syscall_handler (struct intr_frame *);
 

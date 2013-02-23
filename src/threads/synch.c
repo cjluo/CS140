@@ -205,20 +205,21 @@ lock_acquire (struct lock *lock)
   
   struct thread *t = thread_current ();
 
+  
+  enum intr_level old_level = intr_disable ();  
   if (!thread_mlfqs)
-  {
-    /* priority donation */
-    enum intr_level old_level = intr_disable ();  
+  { 
     if (lock->holder != NULL)
     {
       /* lock is held by other thread */
       t->waiting_lock = lock;
       lock_priority_donate (lock, t->priority);
     }
-    intr_set_level (old_level);
   }
   
   sema_down (&lock->semaphore);
+  
+  intr_set_level (old_level);
   
   ASSERT(t == thread_current ());
   ASSERT(lock->holder == NULL);
@@ -266,9 +267,9 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable ();
   if (!thread_mlfqs)
   {
-    enum intr_level old_level = intr_disable ();
     struct thread *t = lock->holder;
     lock->holder = NULL;
 
@@ -276,11 +277,11 @@ lock_release (struct lock *lock)
     list_remove (&lock->elem);
     /* rollback priority */
     thread_priority_rollback (t, t->base_priority);
-    intr_set_level (old_level);
   }
   else
     lock->holder = NULL;
   sema_up (&lock->semaphore);
+  intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -409,7 +410,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   
   sema_init (&waiter.semaphore, 0);
   waiter.priority = thread_current ()->priority;
-  list_insert_ordered (&cond->waiters, &waiter.elem, sema_priority_less, NULL);
+  list_push_back (&cond->waiters, &waiter.elem);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -433,8 +434,9 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
 
   if (!list_empty (&cond->waiters))
   {
-    struct list_elem *e = list_pop_front (&cond->waiters);
+    struct list_elem *e = list_min (&cond->waiters, sema_priority_less, NULL);
     struct semaphore_elem *s = list_entry (e, struct semaphore_elem, elem);
+    list_remove (e);
     sema_up (&s->semaphore);
   }
 }

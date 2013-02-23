@@ -100,17 +100,16 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-	struct list file_list;
-	struct list child_list;
-	struct list exit_child_list;
-	
-	struct list_elem child_elem;
-	
-	struct thread *parent;
-	
-	struct semaphore thread_finish;
-	
-	int exit_status;
+    struct list file_list;
+    struct list child_list;
+    struct list exit_child_list;
+
+    struct list_elem child_elem;
+
+    struct thread *parent;
+    struct semaphore thread_finish;
+
+    int exit_status;
 #endif
 
     /* Owned by thread.c. */

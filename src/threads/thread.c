@@ -583,15 +583,16 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   t->wakeup_ticks = WAKEUP_INIT;
   t->waiting_lock = NULL;
+
+#ifdef USERPROG
   t->exit_status = -1;
   t->parent = NULL;
-  
   list_init (&t->file_list);
   list_init (&t->child_list);
   list_init (&t->exit_child_list);
-  
   sema_init (&t->thread_finish, 0);
-  
+#endif
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
