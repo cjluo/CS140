@@ -158,7 +158,9 @@ page_fault (struct intr_frame *f)
     void *upage = pg_round_down (fault_addr);
     struct page_table_entry *pte = get_sup_page (upage);
 
-    // file_read
+    if(pte == NULL)
+      sys_exit (-1);
+
     if(load_segment (pte))
       return;
   }

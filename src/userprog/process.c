@@ -123,8 +123,6 @@ start_process (void *process_frame_struct)
   success = load (file_name, &if_.eip, &if_.esp);
   lock_release (&file_lock);
   
-
-
   if (is_thread (p_frame->parent))
   {
     /* add the thread to its parent's child_list */
@@ -134,7 +132,6 @@ start_process (void *process_frame_struct)
     child->parent = p_frame->parent;
     intr_set_level (old_level);
   }
-
 
   p_frame->load_success = success;
   
@@ -693,7 +690,6 @@ install_page (void *upage, void *kpage, bool writable)
 bool 
 load_segment (struct page_table_entry *pte)
 {
-
   file_seek (pte->file, pte->ofs);
   /* Get a page of memory. */
   uint8_t *kpage = palloc_get_page (PAL_USER);
@@ -715,9 +711,7 @@ load_segment (struct page_table_entry *pte)
     palloc_free_page (kpage);
     return false; 
   }
-
   return true;
-
 }
 
 
