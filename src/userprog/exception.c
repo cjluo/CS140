@@ -149,9 +149,12 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+  
+  printf("#### fault_addr %x %d \n", fault_addr, (int)not_present);
 
-  if (not_present || (is_kernel_vaddr (fault_addr) && user))
-    sys_exit (-1);
+  if (not_present || (is_kernel_vaddr (fault_addr) && user)){
+    //sys_exit (-1);
+  }
   
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to

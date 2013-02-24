@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <hash.h>
 
+int aaa = 5;
 struct page_table_entry
 {
   uint8_t *upage; // Key
@@ -16,13 +17,12 @@ struct page_table_entry
   bool writable;
 
   struct hash_elem elem;
-
 };
 
-/* Functionalities required by hash table, which is supplemental_pt */
-unsigned suppl_pt_hash (const struct hash_elem *, void * UNUSED);
-bool suppl_pt_less (const struct hash_elem *, 
-		    const struct hash_elem *,
-		    void * UNUSED);
+/* hash function and less function */
+bool sup_less (const struct hash_elem *, const struct hash_elem *, 
+                void * UNUSED);
+unsigned sup_hash (const struct hash_elem *, void * UNUSED);
+bool sup_insert ( struct file *, off_t, uint8_t *, uint32_t, uint32_t, bool);
 
 #endif
