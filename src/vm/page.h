@@ -1,8 +1,10 @@
 #ifndef VM_PAGE_H
 #define VM_PAGE_H
 #include "threads/thread.h"
+#include "filesys/file.h"
 #include <stdint.h>
-int aa = 5;
+#include <hash.h>
+
 struct page_table_entry
 {
   uint8_t *upage; // Key
@@ -12,6 +14,8 @@ struct page_table_entry
   struct file *file;
   off_t ofs;
   bool writable;
+
+  struct hash_elem elem;
 
 };
 
