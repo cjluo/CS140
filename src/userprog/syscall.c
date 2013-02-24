@@ -13,6 +13,7 @@
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 #include <string.h>
+#include "lib/user/syscall.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -31,8 +32,9 @@ static int sys_seek (int, unsigned);
 static int sys_tell (int);
 static int sys_close (int);
 static int fd_gen (void);
+static int sys_mmap (int, void *);
+static int sys_munmap (mapid_t);
 static struct fd_frame * fd_to_fd_frame (int);
-
 void
 syscall_init (void) 
 {
@@ -118,6 +120,15 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_CLOSE:
       check_valid_address (esp+1);
       return_value = sys_close ((int)*(esp+1));
+      break;
+    case SYS_MMAP:
+      check_valid_address (esp+1);
+      check_valid_address (esp+2);
+      return_value = sys_mmap ((int)*(esp+1), (void *)*(esp+2));
+      break;
+    case SYS_MUNMAP:
+      check_valid_address (esp+1);
+      return_value = sys_munmap ((mapid_t)*(esp+1));
       break;
     default:
       ASSERT (false);
@@ -365,4 +376,53 @@ check_valid_address (const void *address)
 {
   if (!is_user_vaddr (address) || address == NULL)
     sys_exit (-1);
+}
+
+static int sys_mmap (int fd, void *addr)
+{
+    /* validate address */
+  check_valid_address (addr);
+  if (pg_ofs (addr) != 0)
+    return -1;
+
+  /* validate fd */
+  if (fd <= 1)
+    return -1;
+
+  /* validate file size */
+  int file_size = sys_filesize (fd);
+  if (file_size <= 0)
+    return -1;
+
+  /* validate file */
+  struct fd_frame *f = fd_to_fd_frame (fd);
+  if (f == NULL)
+    return -1;
+
+  //CHECK STACK COLLISION
+  struct thread *t = thread_current ();
+  void *tmp_address = addr;
+  while (file_size > 0) {
+    if (pagedir_get_page (t->pagedir, tmp_address) != NULL)
+      return -1;
+    file_size -= PGSIZE;
+    tmp_address += PGSIZE;
+  }
+
+
+
+
+
+
+
+
+
+    
+
+  return -1;
+}
+
+static int sys_munmap (mapid_t mapping)
+{
+  return -1;
 }
