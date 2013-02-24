@@ -658,7 +658,10 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
+      {
         *esp = PHYS_BASE;
+        thread_current ()->user_stack = ((uint8_t *) PHYS_BASE) - PGSIZE;
+      }
       else
         palloc_free_page (kpage);
     }

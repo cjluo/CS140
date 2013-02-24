@@ -114,8 +114,10 @@ struct thread
     int exit_status;
 #endif
 
+#ifdef VM
     struct hash sup_page_table;
-
+    void *user_stack;
+#endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

@@ -162,20 +162,24 @@ page_fault (struct intr_frame *f)
     
     struct page_table_entry *pte = get_sup_page (upage);
     
-    // printf("fault_addr:%x\n", (uint32_t) fault_addr);
-    // printf("pte:%x\n", (uint32_t) pte);
     if(pte == NULL)
     {
       /* Check Stack Pointer */
-      if ((f->esp - fault_addr == 32 || f->esp - fault_addr == 4)
+      if ((f->esp - fault_addr == 4 
+           || f->esp - fault_addr == 32)
            && PHYS_BASE - fault_addr <= STACK_SIZE)
       {
         void *stack_page = palloc_get_page (PAL_USER | PAL_ZERO);
-        if (install_page (upage, stack_page, true))
+        if (install_page (thread_current ()->user_stack -= PGSIZE, 
+                          stack_page, true))
           return;
+        else
+          palloc_free_page (stack_page);
       }
       else
+      {
         sys_exit (-1);
+      }
     }
 
     if(load_segment (pte))
@@ -194,6 +198,7 @@ page_fault (struct intr_frame *f)
           user ? "user" : "kernel");
   kill (f);
 }
+
 
 
 
