@@ -113,17 +113,17 @@ start_process (void *process_frame_struct)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   
+  struct thread *child = thread_current ();
+
+  /* init sup page table */
+  hash_init (&child->sup_page_table, sup_hash, sup_less, NULL);
+
   /* lock filesys before finish loading */
   lock_acquire (&file_lock);
   success = load (file_name, &if_.eip, &if_.esp);
   lock_release (&file_lock);
   
-  struct thread *child = thread_current ();
 
-  /* init sup page table */
-  printf("##hash init %d \n", aaa);
-  hash_init (&child->sup_page_table, sup_hash, sup_less, NULL);
-  
 
   if (is_thread (p_frame->parent))
   {
@@ -466,10 +466,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
 
-
-
-
-
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
@@ -637,7 +633,7 @@ lazy_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       // !!! 
-      printf("@@@@@@  sup_insert: %x \n", upage);
+      //printf("@@@@@@  sup_insert: %x \n", upage);
       if (!sup_insert (file, ofs, upage, page_read_bytes,
                        page_zero_bytes, writable))
         return false;
@@ -693,4 +689,35 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
+bool 
+load_segment (struct page_table_entry *pte)
+{
+
+  file_seek (pte->file, pte->ofs);
+  /* Get a page of memory. */
+  uint8_t *kpage = palloc_get_page (PAL_USER);
+  if (kpage == NULL)
+    return false;
+
+  /* Load this page. */
+  if (file_read (pte->file, kpage, pte->read_bytes) != 
+      (int) pte->read_bytes)
+  {
+    palloc_free_page (kpage);
+    return false; 
+  }
+  memset (kpage + pte->read_bytes, 0, pte->zero_bytes);
+
+  /* Add the page to the process's address space. */
+  if (!install_page (pte->upage, kpage, pte->writable)) 
+  {
+    palloc_free_page (kpage);
+    return false; 
+  }
+
+  return true;
+
+}
+
 

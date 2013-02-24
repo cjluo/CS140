@@ -42,14 +42,24 @@ sup_insert (struct file *file, off_t ofs, uint8_t *upage,
   pte->zero_bytes = zero_bytes;
   pte->writable = writable;
   
-  printf("## sup_insert 1 %x \n", (uint32_t)pte->upage);
-  ASSERT( &thread_current ()->sup_page_table);
+  //printf("## sup_insert 1 %x \n", (uint32_t)pte->upage);
   struct hash_elem *result = hash_insert (&thread_current ()->sup_page_table, &pte->elem);
-  printf("## sup_insert 2 \n");
 
   if (result != NULL)
     return false;
 
   return true;
+}
+
+struct page_table_entry *
+get_sup_page (uint8_t *upage)
+{
+  struct hash_elem *e;
+  struct page_table_entry pte;
+  pte.upage = upage;
+
+  e = hash_find (&thread_current ()->sup_page_table, &pte.elem);
+  return e != NULL ? hash_entry (e, struct page_table_entry, elem) : NULL;
+
 }
 
