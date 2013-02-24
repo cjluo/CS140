@@ -8,6 +8,9 @@
 #include "threads/vaddr.h"
 #include "vm/page.h"
 #include "userprog/process.h"
+#include "threads/palloc.h"
+
+#define STACK_SIZE 8*1024*1024
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -151,18 +154,29 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-  
 
   if (not_present && !is_kernel_vaddr (fault_addr))
   {
     // user address fault
     void *upage = pg_round_down (fault_addr);
+    
     struct page_table_entry *pte = get_sup_page (upage);
     
     // printf("fault_addr:%x\n", (uint32_t) fault_addr);
     // printf("pte:%x\n", (uint32_t) pte);
     if(pte == NULL)
-      sys_exit (-1);
+    {
+      /* Check Stack Pointer */
+      if ((f->esp - fault_addr == 32 || f->esp - fault_addr == 4)
+           && PHYS_BASE - fault_addr <= STACK_SIZE)
+      {
+        void *stack_page = palloc_get_page (PAL_USER | PAL_ZERO);
+        if (install_page (upage, stack_page, true))
+          return;
+      }
+      else
+        sys_exit (-1);
+    }
 
     if(load_segment (pte))
       return;
