@@ -20,6 +20,8 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "userprog/syscall.h"
+#include "vm/frame.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -29,7 +31,7 @@ struct process_frame
   struct semaphore *load_finish;
   void *file_name_;
   struct thread *parent;
-  bool load_success;
+  bool load_success; 
 };
 
 struct exit_status_frame
@@ -116,6 +118,10 @@ start_process (void *process_frame_struct)
   lock_release (&file_lock);
   
   struct thread *child = thread_current ();
+
+
+  /* init sup page table */
+  hash_init (&child->sup_page_table, suppl_pt_hash, suppl_pt_less, NULL);
 
 
   if (is_thread (p_frame->parent))
@@ -418,10 +424,22 @@ load (const char *file_name, void (**eip) (void), void **esp)
   int i;
 
   /* Allocate and activate page directory. */
+  
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
+  
+
+/*
+  // malloc with PAL_USER page
+  t->pagedir = palloc_get_page (PAL_USER);
+  if (t->pagedir != NULL)
+    memcpy (t->pagedir, init_page_dir, PGSIZE);
+  if (t->pagedir == NULL) 
+    goto done;
+  process_activate ();
+*/
 
   /* Open executable file. */
   file = filesys_open (file_name);
@@ -446,6 +464,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
 
+
+
+
+
+
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++) 
@@ -459,6 +482,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
         goto done;
       file_ofs += sizeof phdr;
+
       switch (phdr.p_type) 
         {
         case PT_NULL:
@@ -487,6 +511,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   read_bytes = page_offset + phdr.p_filesz;
                   zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
                                 - read_bytes);
+                  //printf("\n##read Size: %d\n", read_bytes);
                 }
               else 
                 {
@@ -495,6 +520,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   read_bytes = 0;
                   zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
                 }
+
               if (!load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
@@ -621,6 +647,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
+
+      //printf("\n##install_page  %d\n", read_bytes);
+
 
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable)) 
