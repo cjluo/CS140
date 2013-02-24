@@ -10,6 +10,7 @@
 #include "threads/loader.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "vm/frame.h"
 
 /* Page allocator.  Hands out memory in page-size (or
    page-multiple) chunks.  See malloc.h for an allocator that
@@ -31,10 +32,12 @@ struct pool
     struct lock lock;                   /* Mutual exclusion. */
     struct bitmap *used_map;            /* Bitmap of free pages. */
     uint8_t *base;                      /* Base of pool. */
+    uint32_t page_cnt;
   };
 
 /* Two pools: one for kernel data, one for user pages. */
 static struct pool kernel_pool, user_pool;
+static uint32_t user_pool_size;
 
 static void init_pool (struct pool *, void *base, size_t page_cnt,
                        const char *name);
@@ -48,13 +51,14 @@ palloc_init (size_t user_page_limit)
   /* Free memory starts at 1 MB and runs to the end of RAM. */
   uint8_t *free_start = ptov (1024 * 1024);
   uint8_t *free_end = ptov (init_ram_pages * PGSIZE);
+  
   size_t free_pages = (free_end - free_start) / PGSIZE;
   size_t user_pages = free_pages / 2;
   size_t kernel_pages;
   if (user_pages > user_page_limit)
     user_pages = user_page_limit;
   kernel_pages = free_pages - user_pages;
-
+  
   /* Give half of memory to kernel, half to user. */
   init_pool (&kernel_pool, free_start, kernel_pages, "kernel pool");
   init_pool (&user_pool, free_start + kernel_pages * PGSIZE,
@@ -110,7 +114,11 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
 void *
 palloc_get_page (enum palloc_flags flags) 
 {
-  return palloc_get_multiple (flags, 1);
+  void* frame = palloc_get_multiple (flags, 1);
+  if (frame == NULL && (flags & PAL_USER))
+    return get_next_frame();
+  else
+    return frame;
 }
 
 /* Frees the PAGE_CNT pages starting at PAGES. */
@@ -160,13 +168,21 @@ init_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
   if (bm_pages > page_cnt)
     PANIC ("Not enough memory in %s for bitmap.", name);
   page_cnt -= bm_pages;
-
+  
   printf ("%zu pages available in %s.\n", page_cnt, name);
 
   /* Initialize the pool. */
   lock_init (&p->lock);
   p->used_map = bitmap_create_in_buf (page_cnt, base, bm_pages * PGSIZE);
   p->base = base + bm_pages * PGSIZE;
+  p->page_cnt = page_cnt;
+}
+
+void
+set_user_pool_info (uint32_t *base, uint32_t *page_cnt)
+{
+  *base = (uint32_t)user_pool.base;
+  *page_cnt = (uint32_t)user_pool.page_cnt;
 }
 
 /* Returns true if PAGE was allocated from POOL,
