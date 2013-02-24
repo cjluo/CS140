@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "vm/page.h"
 #include "threads/malloc.h"
-
+#include "threads/vaddr.h"
 
 /* less function */
 bool
@@ -82,7 +82,7 @@ get_sup_page (uint8_t *upage)
 bool
 lazy_load_segment (struct file *file, off_t ofs, uint8_t *upage,
                    uint32_t read_bytes, uint32_t zero_bytes,
-                   bool writable, enum hash_type type); 
+                   bool writable, enum hash_type type)
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
@@ -97,10 +97,8 @@ lazy_load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      // !!! 
-      //printf("@@@@@@  sup_insert: %x \n", upage);
       if (!sup_insert (file, ofs, upage, page_read_bytes,
-                       page_zero_bytes, writable, SUP_MAP))
+                       page_zero_bytes, writable, type))
         return false;
 
       /* Advance. */
