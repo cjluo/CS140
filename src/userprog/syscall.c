@@ -363,9 +363,6 @@ fd_to_fd_frame (int fd)
 static inline void
 check_valid_address (const void *address)
 {
-  if (!is_user_vaddr (address))
-    sys_exit (-1);
-  struct thread *t = thread_current ();
-  if (pagedir_get_page (t->pagedir, address) == NULL)
+  if (!is_user_vaddr (address) || address == NULL)
     sys_exit (-1);
 }

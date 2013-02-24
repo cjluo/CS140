@@ -153,20 +153,22 @@ page_fault (struct intr_frame *f)
   user = (f->error_code & PF_U) != 0;
   
 
-  if (not_present && !is_kernel_vaddr (fault_addr)) {
+  if (not_present && !is_kernel_vaddr (fault_addr))
+  {
     // user address fault
     void *upage = pg_round_down (fault_addr);
     struct page_table_entry *pte = get_sup_page (upage);
-
+    
+    // printf("fault_addr:%x\n", (uint32_t) fault_addr);
+    // printf("pte:%x\n", (uint32_t) pte);
     if(pte == NULL)
       sys_exit (-1);
 
     if(load_segment (pte))
       return;
   }
-  if (not_present || (is_kernel_vaddr (fault_addr) && user)){
+  if (not_present || (is_kernel_vaddr (fault_addr) && user))
     sys_exit (-1);
-  }
   
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
