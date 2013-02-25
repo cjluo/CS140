@@ -442,7 +442,7 @@ sys_mmap (int fd, void *addr)
   if (!lazy_load_segment (f->file, 0, (void *) addr,
                           read_bytes, zero_bytes, true, M_MAP))
     return -1;
-
+  
   struct mmap_frame *m = malloc (sizeof (struct mmap_frame));
   m->mmap_id = mmap_id_gen ();
   m->page_cnt = ROUND_UP (read_bytes, PGSIZE) / PGSIZE;
@@ -457,12 +457,17 @@ static int
 sys_munmap (mapid_t mapping)
 {
   struct mmap_frame *m = mmap_id_to_mmap_frame (mapping);
+  mmap_remove (m);
+  return -1;
+}
+
+void
+mmap_remove (struct mmap_frame *m)
+{
   if(m)
   {
     uint32_t i;
     for (i = 0; i < m->page_cnt; i++)
       delete_sup_page(m->upage + i * PGSIZE);
-    free(m);
   }
-  return -1;
 }

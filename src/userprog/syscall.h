@@ -4,10 +4,6 @@
 #include <list.h>
 #include "lib/user/syscall.h"
 
-struct lock file_lock;
-void syscall_init (void);
-int sys_exit (int);
-
 struct fd_frame
   {
     int fd;
@@ -22,5 +18,10 @@ struct mmap_frame
     void *upage;
     struct list_elem elem;
 };
+
+struct lock file_lock;
+void syscall_init (void);
+int sys_exit (int);
+void mmap_remove (struct mmap_frame *);
 
 #endif /* userprog/syscall.h */

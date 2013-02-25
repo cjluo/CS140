@@ -9,6 +9,7 @@
 #include "vm/page.h"
 #include "userprog/process.h"
 #include "threads/palloc.h"
+#include "threads/synch.h"
 
 #define STACK_SIZE 8*1024*1024
 
@@ -159,9 +160,8 @@ page_fault (struct intr_frame *f)
   {
     // user address fault
     void *upage = pg_round_down (fault_addr);
-    
     struct page_table_entry *pte = get_sup_page (upage);
-    
+
     if(pte == NULL)
     {
       /* Check Stack Pointer */
@@ -182,8 +182,13 @@ page_fault (struct intr_frame *f)
       }
     }
 
-    if(load_segment (pte))
-      return;
+    else
+    {
+      // !!!May need to add a lock here
+      bool success = load_segment (pte);
+      if (success)
+        return;
+    }
   }
   if (not_present || (is_kernel_vaddr (fault_addr) && user))
     sys_exit (-1);

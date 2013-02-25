@@ -313,7 +313,15 @@ process_exit (void)
     file_close (f->file);
     free (f);
   }
-    
+  
+  /* free mmap_list */
+  while (!list_empty (&cur->mmap_list))
+  {
+    e = list_pop_front (&cur->mmap_list);
+    struct mmap_frame *m = list_entry (e, struct mmap_frame, elem);
+    mmap_remove (m);
+    free (m);
+  }
 
   intr_set_level (old_level);
   
@@ -649,8 +657,25 @@ load_segment (struct page_table_entry *pte)
   if (file_read (pte->file, kpage, pte->read_bytes) != 
       (int) pte->read_bytes)
   {
-    palloc_free_page (kpage);
-    return false; 
+    if (pte->type == M_MAP)
+    {
+      printf("%x\n", (uint32_t)pte->file);
+      file_reopen(pte->file);
+      printf("%x\n", (uint32_t)pte->file);
+      bool success = (file_read (pte->file, kpage, pte->read_bytes) == 
+                      (int) pte->read_bytes);
+      printf("%x\n", (uint32_t)success);
+      if (!success)
+      {
+        palloc_free_page (kpage);
+        return false;
+      }
+    }
+    else
+    {
+      palloc_free_page (kpage);
+      return false;
+    }
   }
   memset (kpage + pte->read_bytes, 0, pte->zero_bytes);
 
