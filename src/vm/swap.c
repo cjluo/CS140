@@ -15,7 +15,6 @@ static uint32_t get_next_block(void);
 void
 swap_table_init (void)
 {
-  locate
   swap_block = block_get_role (BLOCK_SWAP);
   swap_map = bitmap_create (block_size(swap_block) / SECTORS_PER_PAGE);
   if (swap_map == NULL)
