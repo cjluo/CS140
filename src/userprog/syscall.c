@@ -14,6 +14,7 @@
 #include "userprog/pagedir.h"
 #include <string.h>
 #include "lib/user/syscall.h"
+#include <round.h>
 
 static void syscall_handler (struct intr_frame *);
 
@@ -32,9 +33,11 @@ static int sys_seek (int, unsigned);
 static int sys_tell (int);
 static int sys_close (int);
 static int fd_gen (void);
+static mapid_t mmap_id_gen (void);
 static int sys_mmap (int, void *);
 static int sys_munmap (mapid_t);
 static struct fd_frame * fd_to_fd_frame (int);
+static struct mmap_frame * mmap_id_to_mmap_frame (mapid_t);
 void
 syscall_init (void) 
 {
@@ -355,6 +358,13 @@ fd_gen (void)
   return ++fd;
 }
 
+static mapid_t
+mmap_id_gen (void)
+{
+  static mapid_t mmap_id = 0;
+  return ++mmap_id;
+}
+
 /* fild fd_frame by fd */
 static struct fd_frame *
 fd_to_fd_frame (int fd)
@@ -370,6 +380,21 @@ fd_to_fd_frame (int fd)
   return NULL;
 }
 
+static struct mmap_frame * 
+mmap_id_to_mmap_frame (mapid_t mmap_id)
+{
+  struct list *l = &thread_current () -> mmap_list;
+  struct list_elem *e;
+  for (e = list_begin (l); e != list_end (l); e = list_next (e))
+  {
+    struct mmap_frame *m = list_entry (e, struct mmap_frame, elem);
+    if (m->mmap_id == mmap_id)
+      return m;
+  }
+  return NULL;
+}
+
+
 /* validate address */
 static inline void
 check_valid_address (const void *address)
@@ -378,7 +403,8 @@ check_valid_address (const void *address)
     sys_exit (-1);
 }
 
-static int sys_mmap (int fd, void *addr)
+static int
+sys_mmap (int fd, void *addr)
 {
     /* validate address */
   check_valid_address (addr);
@@ -393,6 +419,10 @@ static int sys_mmap (int fd, void *addr)
   int file_size = sys_filesize (fd);
   if (file_size <= 0)
     return -1;
+
+  uint32_t read_bytes = file_size;
+  uint32_t zero_bytes = (ROUND_UP (read_bytes, PGSIZE)
+                                - read_bytes);
 
   /* validate file */
   struct fd_frame *f = fd_to_fd_frame (fd);
@@ -409,20 +439,22 @@ static int sys_mmap (int fd, void *addr)
     tmp_address += PGSIZE;
   }
 
+  if (!lazy_load_segment (f->file, 0, (void *) addr,
+                          read_bytes, zero_bytes, true, M_MAP))
+    return -1;
 
+  struct mmap_frame *m = malloc (sizeof (struct mmap_frame));
+  m->mmap_id = mmap_id_gen ();
+  m->page_cnt = ROUND_UP (read_bytes, PGSIZE) / PGSIZE;
+  m->upage = addr;
 
+  list_push_back (&t->mmap_list, &m->elem);
 
-
-
-
-
-
-    
-
-  return -1;
+  return m->mmap_id;
 }
 
-static int sys_munmap (mapid_t mapping)
+static int
+sys_munmap (mapid_t mapping)
 {
   return -1;
 }
