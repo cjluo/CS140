@@ -17,10 +17,10 @@ struct fd_frame
 
 struct mmap_frame
 {
-	mapid_t mmap_id;
-	size_t page_cnt;
-	void *upage;
-	struct list_elem elem;
+    mapid_t mmap_id;
+    uint32_t page_cnt;
+    void *upage;
+    struct list_elem elem;
 };
 
 #endif /* userprog/syscall.h */

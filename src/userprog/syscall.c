@@ -456,5 +456,13 @@ sys_mmap (int fd, void *addr)
 static int
 sys_munmap (mapid_t mapping)
 {
+  struct mmap_frame *m = mmap_id_to_mmap_frame (mapping);
+  if(m)
+  {
+    uint32_t i;
+    for (i = 0; i < m->page_cnt; i++)
+      delete_sup_page(m->upage + i * PGSIZE);
+    free(m);
+  }
   return -1;
 }

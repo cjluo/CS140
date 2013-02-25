@@ -34,5 +34,7 @@ bool sup_insert (struct file *, off_t, uint8_t *,
 struct page_table_entry *get_sup_page (uint8_t *);
 bool lazy_load_segment (struct file *, off_t, uint8_t *, uint32_t, uint32_t,
                         bool, enum hash_type); 
+struct page_table_entry *get_sup_page (uint8_t *upage);
+void delete_sup_page (uint8_t *);
 
 #endif

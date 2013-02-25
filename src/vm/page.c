@@ -33,6 +33,9 @@ sup_insert (struct file *file, off_t ofs, uint8_t *upage,
             uint32_t read_bytes, uint32_t zero_bytes, bool writable,
             enum hash_type type)
 {
+  if(get_sup_page (upage) != NULL)
+    return false;
+  
   struct page_table_entry *pte; 
   pte = malloc (sizeof *pte);
 
@@ -44,11 +47,14 @@ sup_insert (struct file *file, off_t ofs, uint8_t *upage,
   pte->writable = writable;
   pte->type = type;
   
-  //printf("## sup_insert 1 %x \n", (uint32_t)pte->upage);
+  
   struct hash_elem *result = hash_insert (&thread_current ()->sup_page_table, &pte->elem);
 
   if (result != NULL)
+  {
+    free (pte);
     return false;
+  }
 
   return true;
 }
@@ -62,7 +68,24 @@ get_sup_page (uint8_t *upage)
 
   e = hash_find (&thread_current ()->sup_page_table, &pte.elem);
   return e != NULL ? hash_entry (e, struct page_table_entry, elem) : NULL;
+}
 
+void
+delete_sup_page (uint8_t *upage)
+{
+  struct hash_elem *e;
+  struct page_table_entry pte;
+  struct page_table_entry *delete;
+  pte.upage = upage;
+
+  e = hash_delete (&thread_current ()->sup_page_table, &pte.elem);
+  if (e != NULL)
+  {
+    delete = hash_entry(e, struct page_table_entry, elem);
+    free (delete);
+  }
+  // need to delete page later;
+  return;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
