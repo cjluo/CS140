@@ -1,4 +1,5 @@
 #include <bitmap.h>
+#include <stdio.h>
 #include "devices/block.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
@@ -11,30 +12,42 @@ static struct lock swap_lock;
 
 static uint32_t SECTORS_PER_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
 static uint32_t get_next_block(void);
+static bool swap_enable = false;
+
+inline bool
+get_swap_enable(void)
+{
+  return swap_enable;
+}
 
 void
 swap_table_init (void)
 {
-  swap_block = block_get_role (BLOCK_SWAP);
-  swap_map = bitmap_create (block_size(swap_block) / SECTORS_PER_PAGE);
-  if (swap_map == NULL)
-    PANIC("Not enough block space");
   lock_init (&swap_lock);
+  swap_block = block_get_role (BLOCK_SWAP);
+  if (swap_block != NULL)
+  {
+    swap_enable = true;
+    swap_map = bitmap_create (block_size(swap_block) / SECTORS_PER_PAGE);
+    if (swap_map == NULL)
+      PANIC("Create bitmap failed");
+    bitmap_set_all (swap_map, false);
+    
+  }
 }
 
 uint32_t
 write_to_swap (void *frame)
 {
+  // lock_acquire (&swap_lock);
   uint32_t index = get_next_block();
   uint32_t i;
-  
-  lock_acquire (&swap_lock);
   for(i = 0; i < SECTORS_PER_PAGE; i++)
   {
     block_write (swap_block, index * SECTORS_PER_PAGE + i,
                  frame + i * SECTORS_PER_PAGE);
   }
-  lock_release (&swap_lock);
+  // lock_release (&swap_lock);
   
   return index;
 }

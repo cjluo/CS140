@@ -158,7 +158,9 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
-
+  
+  printf("read upage: %x\n", (uint32_t)pg_round_down (fault_addr));
+  
   if (not_present && !is_kernel_vaddr (fault_addr))
   {
     // user address fault
@@ -167,6 +169,22 @@ page_fault (struct intr_frame *f)
 
     if(spte == NULL)
     {
+      if(get_swap_enable())
+      {
+        /* Check Swap */
+        uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
+        printf("PTE: %x\n", (uint32_t)(*pte));
+        if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
+        {
+          /* Recorde the index in SWAP */
+          uint32_t index = *pte >> 12;
+          printf("read: index: %u upage: %x\n", index, (uint32_t)upage);
+          void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+          if (read_from_swap (index, kpage) 
+              && install_page (upage, kpage, true))
+            return;
+        }
+      }
       /* Check Stack Pointer */
       if ((f->esp - fault_addr == 4 
            || f->esp - fault_addr == 32)
@@ -180,23 +198,7 @@ page_fault (struct intr_frame *f)
           palloc_free_page (stack_page);
       }
       else
-      {
-        // printf("HERE1\n");
-        // /* Check Swap */
-        // uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
-        // printf("HERE2\n");
-        // if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
-        // {
-          // /* Recorde the index in SWAP */
-          // uint32_t index = *pte >> 12;
-          // void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-          // if (read_from_swap (index, kpage) 
-              // && install_page (upage, kpage, true))
-            // return;
-        // }
-        // printf("HERE3\n");
         sys_exit (-1);
-      }
     }
 
     else
@@ -207,8 +209,8 @@ page_fault (struct intr_frame *f)
         return;
     }
   }
-  if (not_present || (is_kernel_vaddr (fault_addr) && user))
-    sys_exit (-1);
+  // if (not_present || (is_kernel_vaddr (fault_addr) && user))
+  sys_exit (-1);
   
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to

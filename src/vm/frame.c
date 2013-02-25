@@ -51,7 +51,7 @@ get_next_frame (void)
   struct thread *t = thread_current ();
   
   uint32_t i;
-  for (i = 0; i < user_pool_page_cnt*2; i++)
+  for (i = 0; i < user_pool_page_cnt*3; i++)
   {
     frame_clock_point++;
     frame_clock_point %= user_pool_page_cnt;
@@ -60,26 +60,28 @@ get_next_frame (void)
     bool accessed = pagedir_is_accessed (t->pagedir, f->upage);
     if (accessed)
       pagedir_set_accessed (t->pagedir, f->upage, false);
-    else if (f->tid != t->tid)
+    else if (f->tid != t->tid || i >= 2 * user_pool_page_cnt)
     {
       void *next_frame = (void *)(frame_clock_point * PGSIZE + user_pool_base);
-              // printf("HERE1\n");
-      // if (pagedir_is_dirty (thread_current ()->pagedir, f->upage))
-      // {
-        // uint32_t index = write_to_swap(next_frame);
-        // uint32_t *pte = lookup_page (f->pd, f->upage, false);
-        // if (pte != NULL && (*pte & PTE_P) != 0)
-        // {
-          // /* Recorde the index in SWAP */
-          // *pte &= PTE_FLAGS;
-          // *pte |= index << 12;
-          // /* Use the AVL bits */
-          // *pte |= 1 << 9;
-        // }
-        // else
-          // PANIC ("Frame not mapped!!!");
-      // }
-              // printf("HERE2\n");
+
+      if (get_swap_enable() 
+          && pagedir_is_dirty (thread_current ()->pagedir, f->upage))
+      {
+        uint32_t index = write_to_swap(next_frame);
+        uint32_t *pte = lookup_page (f->pd, f->upage, false);
+        if (pte != NULL && (*pte & PTE_P) != 0)
+        {
+          /* Recorde the index in SWAP */
+          *pte &= PTE_FLAGS;
+          *pte |= index << 12;
+          /* Use the AVL bits */
+          *pte |= 1 << 9;
+          *pte &= ~PTE_P;
+          printf("write: index: %u upage: %x\n", index, (uint32_t)f->upage);
+        }
+        else
+          PANIC ("Frame not mapped!!!");
+      }
       pagedir_clear_page (f->pd, f->upage);
       lock_release (&frame_lock);
       return next_frame;
