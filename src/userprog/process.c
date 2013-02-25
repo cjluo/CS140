@@ -319,8 +319,8 @@ process_exit (void)
   {
     e = list_pop_front (&cur->mmap_list);
     struct mmap_frame *m = list_entry (e, struct mmap_frame, elem);
-    file_close (m->mfile);
     mmap_remove (m);
+    file_close (m->mfile);
     free (m);
   }
 

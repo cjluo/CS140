@@ -406,7 +406,9 @@ check_valid_address (const void *address)
 static int
 sys_mmap (int fd, void *addr)
 {
-    /* validate address */
+  if (addr == NULL)
+    return -1;
+  /* validate address */
   check_valid_address (addr);
   if (pg_ofs (addr) != 0)
     return -1;
@@ -467,11 +469,11 @@ sys_munmap (mapid_t mapping)
   struct mmap_frame *m = mmap_id_to_mmap_frame (mapping);
   if (m)
   {
+    mmap_remove (m);
     lock_acquire (&file_lock);
     file_close (m->mfile);
     lock_release (&file_lock);
     list_remove (&m->elem);
-    mmap_remove (m);
     free (m);
   }
   return -1;
