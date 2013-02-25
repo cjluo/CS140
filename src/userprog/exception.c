@@ -10,6 +10,9 @@
 #include "userprog/process.h"
 #include "threads/palloc.h"
 #include "threads/synch.h"
+#include "userprog/pagedir.h"
+#include "vm/swap.h"
+#include "threads/pte.h"
 
 #define STACK_SIZE 8*1024*1024
 
@@ -160,9 +163,9 @@ page_fault (struct intr_frame *f)
   {
     // user address fault
     void *upage = pg_round_down (fault_addr);
-    struct page_table_entry *pte = get_sup_page (upage);
+    struct page_table_entry *spte = get_sup_page (upage);
 
-    if(pte == NULL)
+    if(spte == NULL)
     {
       /* Check Stack Pointer */
       if ((f->esp - fault_addr == 4 
@@ -178,6 +181,20 @@ page_fault (struct intr_frame *f)
       }
       else
       {
+        // printf("HERE1\n");
+        // /* Check Swap */
+        // uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
+        // printf("HERE2\n");
+        // if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
+        // {
+          // /* Recorde the index in SWAP */
+          // uint32_t index = *pte >> 12;
+          // void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+          // if (read_from_swap (index, kpage) 
+              // && install_page (upage, kpage, true))
+            // return;
+        // }
+        // printf("HERE3\n");
         sys_exit (-1);
       }
     }
@@ -185,7 +202,7 @@ page_fault (struct intr_frame *f)
     else
     {
       // !!!May need to add a lock here
-      bool success = load_segment (pte);
+      bool success = load_segment (spte);
       if (success)
         return;
     }

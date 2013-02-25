@@ -4,6 +4,8 @@
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
 #include "userprog/pagedir.h"
+#include "vm/swap.h"
+#include "threads/pte.h"
 #define USER_FRAME_NUMBER 1024
 
 static struct frame_table_entry frame_table[USER_FRAME_NUMBER];
@@ -60,10 +62,27 @@ get_next_frame (void)
       pagedir_set_accessed (t->pagedir, f->upage, false);
     else if (f->tid != t->tid)
     {
+      void *next_frame = (void *)(frame_clock_point * PGSIZE + user_pool_base);
+              // printf("HERE1\n");
+      // if (pagedir_is_dirty (thread_current ()->pagedir, f->upage))
+      // {
+        // uint32_t index = write_to_swap(next_frame);
+        // uint32_t *pte = lookup_page (f->pd, f->upage, false);
+        // if (pte != NULL && (*pte & PTE_P) != 0)
+        // {
+          // /* Recorde the index in SWAP */
+          // *pte &= PTE_FLAGS;
+          // *pte |= index << 12;
+          // /* Use the AVL bits */
+          // *pte |= 1 << 9;
+        // }
+        // else
+          // PANIC ("Frame not mapped!!!");
+      // }
+              // printf("HERE2\n");
       pagedir_clear_page (f->pd, f->upage);
-      // need to eviction
       lock_release (&frame_lock);
-      return (void *)(frame_clock_point * PGSIZE + user_pool_base);
+      return next_frame;
     }
   }
   
