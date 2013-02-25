@@ -265,6 +265,17 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  struct list_elem *e;
+  /* free mmap_list */
+  while (!list_empty (&cur->mmap_list))
+  {
+    e = list_pop_front (&cur->mmap_list);
+    struct mmap_frame *m = list_entry (e, struct mmap_frame, elem);
+    mmap_remove (m);
+    file_close (m->mfile);
+    free (m);
+  }
+  
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -296,7 +307,6 @@ process_exit (void)
   }
 
   /* free exit_child_list */
-  struct list_elem *e;
   while (!list_empty (&cur->exit_child_list))
   {
     e = list_pop_front (&cur->exit_child_list);
@@ -312,16 +322,6 @@ process_exit (void)
     
     file_close (f->file);
     free (f);
-  }
-  
-  /* free mmap_list */
-  while (!list_empty (&cur->mmap_list))
-  {
-    e = list_pop_front (&cur->mmap_list);
-    struct mmap_frame *m = list_entry (e, struct mmap_frame, elem);
-    mmap_remove (m);
-    file_close (m->mfile);
-    free (m);
   }
 
   intr_set_level (old_level);
