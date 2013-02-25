@@ -16,6 +16,7 @@ struct mmap_frame
     mapid_t mmap_id;
     uint32_t page_cnt;
     void *upage;
+    struct file* mfile;
     struct list_elem elem;
 };
 

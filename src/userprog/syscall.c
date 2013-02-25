@@ -438,12 +438,17 @@ sys_mmap (int fd, void *addr)
     file_size -= PGSIZE;
     tmp_address += PGSIZE;
   }
-
-  if (!lazy_load_segment (f->file, 0, (void *) addr,
+  
+  lock_acquire (&file_lock);
+  struct file* mfile = file_reopen(f->file);
+  lock_release (&file_lock);
+  
+  if (!lazy_load_segment (mfile, 0, (void *) addr,
                           read_bytes, zero_bytes, true, M_MAP))
     return -1;
   
   struct mmap_frame *m = malloc (sizeof (struct mmap_frame));
+  m->mfile = mfile;
   m->mmap_id = mmap_id_gen ();
   m->page_cnt = ROUND_UP (read_bytes, PGSIZE) / PGSIZE;
   m->upage = addr;
@@ -456,8 +461,19 @@ sys_mmap (int fd, void *addr)
 static int
 sys_munmap (mapid_t mapping)
 {
+  if (mapping < 1)
+    return -1;
+  
   struct mmap_frame *m = mmap_id_to_mmap_frame (mapping);
-  mmap_remove (m);
+  if (m)
+  {
+    lock_acquire (&file_lock);
+    file_close (m->mfile);
+    lock_release (&file_lock);
+    list_remove (&m->elem);
+    mmap_remove (m);
+    free (m);
+  }
   return -1;
 }
 
