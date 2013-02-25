@@ -41,6 +41,8 @@ write_to_swap (void *frame)
 {
   // lock_acquire (&swap_lock);
   uint32_t index = get_next_block();
+  if (index == BITMAP_ERROR)
+    PANIC ("Not enough SWAP space!!");
   uint32_t i;
   for(i = 0; i < SECTORS_PER_PAGE; i++)
   {

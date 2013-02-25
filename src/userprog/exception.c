@@ -159,57 +159,52 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
   
-  printf("read upage: %x\n", (uint32_t)pg_round_down (fault_addr));
-  
   if (not_present && !is_kernel_vaddr (fault_addr))
   {
     // user address fault
     void *upage = pg_round_down (fault_addr);
+    
+    /* first check swap */
+    if(get_swap_enable())
+    {
+      /* Check Swap */
+      uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
+      if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
+      {
+        /* Recorde the index in SWAP */
+        uint32_t index = *pte >> 12;
+        printf("read: index: %u upage: %x\n", index, (uint32_t)upage);
+        void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+        if (read_from_swap (index, kpage) 
+            && install_page (upage, kpage, true))
+          return;
+      }
+    }
+
+    /* second check stack growth */
+    if ((f->esp - fault_addr == 4 
+        || f->esp - fault_addr == 32)
+        && PHYS_BASE - fault_addr <= STACK_SIZE)
+    {
+      void *stack_page = palloc_get_page (PAL_USER | PAL_ZERO);
+      printf("stack: %x\n", (uint32_t)(upage));
+      if (install_page (thread_current ()->user_stack -= PGSIZE, 
+                        stack_page, true))
+        return;
+      else
+      {
+        palloc_free_page (stack_page);
+        sys_exit (-1);
+      }
+    }
+    
     struct page_table_entry *spte = get_sup_page (upage);
 
-    if(spte == NULL)
-    {
-      if(get_swap_enable())
-      {
-        /* Check Swap */
-        uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
-        printf("PTE: %x\n", (uint32_t)(*pte));
-        if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
-        {
-          /* Recorde the index in SWAP */
-          uint32_t index = *pte >> 12;
-          printf("read: index: %u upage: %x\n", index, (uint32_t)upage);
-          void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-          if (read_from_swap (index, kpage) 
-              && install_page (upage, kpage, true))
-            return;
-        }
-      }
-      /* Check Stack Pointer */
-      if ((f->esp - fault_addr == 4 
-           || f->esp - fault_addr == 32)
-           && PHYS_BASE - fault_addr <= STACK_SIZE)
-      {
-        void *stack_page = palloc_get_page (PAL_USER | PAL_ZERO);
-        if (install_page (thread_current ()->user_stack -= PGSIZE, 
-                          stack_page, true))
-          return;
-        else
-          palloc_free_page (stack_page);
-      }
-      else
-        sys_exit (-1);
-    }
-
-    else
-    {
-      // !!!May need to add a lock here
-      bool success = load_segment (spte);
-      if (success)
-        return;
-    }
+    if(spte != NULL && load_segment (spte))
+      return;
   }
   // if (not_present || (is_kernel_vaddr (fault_addr) && user))
+  printf("failed retriving page %x\n", (uint32_t)pg_round_down (fault_addr));
   sys_exit (-1);
   
   /* To implement virtual memory, delete the rest of the function
