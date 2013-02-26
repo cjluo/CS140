@@ -5,9 +5,8 @@
 
 struct frame_table_entry
 {
-  uint32_t *pd;
+  struct thread *t;
   void *upage;
-  tid_t tid;
 };
 
 void frame_table_init (void);

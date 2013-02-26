@@ -25,9 +25,8 @@ frame_table_init (void)
   uint32_t i;
   for (i = 0; i < user_pool_page_cnt; i++)
   {
-    frame_table[i].pd = NULL;
+    frame_table[i].t = NULL;
     frame_table[i].upage = NULL;
-    frame_table[i].tid = -1;
   }
 }
 
@@ -38,8 +37,7 @@ frame_set_upage (void* kpage, void* upage)
   uint32_t index = ((uint32_t)kpage - user_pool_base)/PGSIZE;
   ASSERT(index < user_pool_page_cnt);
   frame_table[index].upage = upage;
-  frame_table[index].tid = thread_current ()->tid;
-  frame_table[index].pd = thread_current ()->pagedir;
+  frame_table[index].t = thread_current ();
   // printf("index: %u tid %d\n", index, (int)frame_table[index].tid);
   lock_release (&frame_lock);
 }
@@ -48,7 +46,6 @@ void *
 get_next_frame (void)
 {
   lock_acquire (&frame_lock);
-  struct thread *t = thread_current ();
   
   uint32_t i;
   for (i = 0; i < user_pool_page_cnt*3; i++)
@@ -57,18 +54,25 @@ get_next_frame (void)
     frame_clock_point %= user_pool_page_cnt;
     
     struct frame_table_entry *f = &frame_table[frame_clock_point];
-    bool accessed = pagedir_is_accessed (f->pd, f->upage);
-    if (accessed)
-      pagedir_set_accessed (f->pd, f->upage, false);
-    else if (f->tid != t->tid || i >= 2 * user_pool_page_cnt)
+    
+    void *next_frame = (void *)(frame_clock_point * PGSIZE + user_pool_base);
+    
+    if (!is_thread(f->t) || f->t->pagedir == NULL)
     {
-      void *next_frame = (void *)(frame_clock_point * PGSIZE + user_pool_base);
-
+      lock_release (&frame_lock);
+      return next_frame;
+    }
+    
+    bool accessed = pagedir_is_accessed (f->t->pagedir, f->upage);
+    if (accessed)
+      pagedir_set_accessed (f->t->pagedir, f->upage, false);
+    else if (f->t != thread_current () || i >= 2 * user_pool_page_cnt)
+    {
       if (get_swap_enable() 
-          && pagedir_is_dirty (f->pd, f->upage))
+          && pagedir_is_dirty (f->t->pagedir, f->upage))
       {
         uint32_t index = write_to_swap(next_frame);
-        uint32_t *pte = lookup_page (f->pd, f->upage, false);
+        uint32_t *pte = lookup_page (f->t->pagedir, f->upage, false);
         if (pte != NULL && (*pte & PTE_P) != 0)
         {
           /* Recorde the index in SWAP */
@@ -84,7 +88,7 @@ get_next_frame (void)
         else
           PANIC ("Frame not mapped!!!");
       }
-      pagedir_clear_page (f->pd, f->upage);
+      pagedir_clear_page (f->t->pagedir, f->upage);
       lock_release (&frame_lock);
       return next_frame;
     }
