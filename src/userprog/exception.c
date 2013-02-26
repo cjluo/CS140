@@ -169,6 +169,7 @@ page_fault (struct intr_frame *f)
     {
       /* Check Swap */
       uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
+      
       if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
       {
         /* Recorde the index in SWAP */
@@ -177,7 +178,15 @@ page_fault (struct intr_frame *f)
         void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
         if (read_from_swap (index, kpage) 
             && install_page (upage, kpage, true))
-          return;
+        {
+            pagedir_set_dirty (thread_current ()->pagedir, upage, true);
+            return;
+        }
+        else
+        {
+          palloc_free_page (kpage);
+          sys_exit (-1);
+        }
       }
     }
 
@@ -201,10 +210,15 @@ page_fault (struct intr_frame *f)
     struct page_table_entry *spte = get_sup_page (upage);
 
     if(spte != NULL && load_segment (spte))
+    {
+      // if(upage == 0x804b000)
+      // {
+        // printf("SPTE\n");
+        // hex_dump(0, upage, PGSIZE, true);
+      // }
       return;
+    }
   }
-  // if (not_present || (is_kernel_vaddr (fault_addr) && user))
-  // printf("failed retriving page %x\n", (uint32_t)pg_round_down (fault_addr));
   sys_exit (-1);
   
   /* To implement virtual memory, delete the rest of the function

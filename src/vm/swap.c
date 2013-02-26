@@ -57,11 +57,11 @@ write_to_swap (void *frame)
 bool
 read_from_swap (uint32_t index, void *frame)
 {
-  lock_acquire (&swap_lock);
+  // lock_acquire (&swap_lock);
 
   if (bitmap_test (swap_map, index) == false)
   {
-    lock_release (&swap_lock);
+    // lock_release (&swap_lock);
     return false;
   }
   
@@ -73,24 +73,23 @@ read_from_swap (uint32_t index, void *frame)
   }
   
   bitmap_set (swap_map, index, false);
-  lock_release (&swap_lock);
-  // putbuf(frame, PGSIZE);
+  // lock_release (&swap_lock);
   return true;
 }
 
 void
 free_swap (uint32_t index)
 {
-  lock_acquire (&swap_lock);
+  // lock_acquire (&swap_lock);
   bitmap_set (swap_map, index, false);
-  lock_release (&swap_lock);
+  // lock_release (&swap_lock);
 }
 
 static uint32_t
 get_next_block(void)
 {
-  lock_acquire (&swap_lock);
+  // lock_acquire (&swap_lock);
   uint32_t page_idx = bitmap_scan_and_flip (swap_map, 0, 1, false);
-  lock_release (&swap_lock);
+  // lock_release (&swap_lock);
   return page_idx;
 }

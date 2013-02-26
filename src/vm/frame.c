@@ -78,6 +78,8 @@ get_next_frame (void)
           *pte |= 1 << 9;
           *pte &= ~PTE_P;
           // printf("write: index: %u upage: %x\n", index, (uint32_t)f->upage);
+          // if(f->upage == 0x804b000)
+            // hex_dump(0, next_frame, PGSIZE, true);
         }
         else
           PANIC ("Frame not mapped!!!");
