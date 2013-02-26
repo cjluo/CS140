@@ -173,7 +173,7 @@ page_fault (struct intr_frame *f)
       {
         /* Recorde the index in SWAP */
         uint32_t index = *pte >> 12;
-        printf("read: index: %u upage: %x\n", index, (uint32_t)upage);
+        // printf("read: index: %u upage: %x\n", index, (uint32_t)upage);
         void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
         if (read_from_swap (index, kpage) 
             && install_page (upage, kpage, true))
@@ -187,7 +187,7 @@ page_fault (struct intr_frame *f)
         && PHYS_BASE - fault_addr <= STACK_SIZE)
     {
       void *stack_page = palloc_get_page (PAL_USER | PAL_ZERO);
-      printf("stack: %x\n", (uint32_t)(upage));
+      // printf("stack: %x\n", (uint32_t)(upage));
       if (install_page (thread_current ()->user_stack -= PGSIZE, 
                         stack_page, true))
         return;
@@ -204,7 +204,7 @@ page_fault (struct intr_frame *f)
       return;
   }
   // if (not_present || (is_kernel_vaddr (fault_addr) && user))
-  printf("failed retriving page %x\n", (uint32_t)pg_round_down (fault_addr));
+  // printf("failed retriving page %x\n", (uint32_t)pg_round_down (fault_addr));
   sys_exit (-1);
   
   /* To implement virtual memory, delete the rest of the function

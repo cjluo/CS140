@@ -77,7 +77,7 @@ get_next_frame (void)
           /* Use the AVL bits */
           *pte |= 1 << 9;
           *pte &= ~PTE_P;
-          printf("write: index: %u upage: %x\n", index, (uint32_t)f->upage);
+          // printf("write: index: %u upage: %x\n", index, (uint32_t)f->upage);
         }
         else
           PANIC ("Frame not mapped!!!");

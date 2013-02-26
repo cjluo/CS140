@@ -47,7 +47,7 @@ write_to_swap (void *frame)
   for(i = 0; i < SECTORS_PER_PAGE; i++)
   {
     block_write (swap_block, index * SECTORS_PER_PAGE + i,
-                 frame + i * SECTORS_PER_PAGE);
+                 frame + i * BLOCK_SECTOR_SIZE);
   }
   // lock_release (&swap_lock);
   
@@ -69,11 +69,12 @@ read_from_swap (uint32_t index, void *frame)
   for(i = 0; i < SECTORS_PER_PAGE; i++)
   {
     block_read (swap_block, index * SECTORS_PER_PAGE + i,
-                frame + i * SECTORS_PER_PAGE);
+                frame + i * BLOCK_SECTOR_SIZE);
   }
   
   bitmap_set (swap_map, index, false);
   lock_release (&swap_lock);
+  // putbuf(frame, PGSIZE);
   return true;
 }
 
