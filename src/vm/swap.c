@@ -39,7 +39,6 @@ swap_table_init (void)
 uint32_t
 write_to_swap (void *frame)
 {
-  // lock_acquire (&swap_lock);
   uint32_t index = get_next_block();
   if (index == BITMAP_ERROR)
     PANIC ("Not enough SWAP space!!");
@@ -49,7 +48,6 @@ write_to_swap (void *frame)
     block_write (swap_block, index * SECTORS_PER_PAGE + i,
                  frame + i * BLOCK_SECTOR_SIZE);
   }
-  // lock_release (&swap_lock);
   
   return index;
 }
@@ -57,13 +55,13 @@ write_to_swap (void *frame)
 bool
 read_from_swap (uint32_t index, void *frame)
 {
-  // lock_acquire (&swap_lock);
-
+  lock_acquire (&swap_lock);
   if (bitmap_test (swap_map, index) == false)
   {
-    // lock_release (&swap_lock);
+    lock_release (&swap_lock);
     return false;
   }
+  lock_release (&swap_lock);
   
   uint32_t i;
   for(i = 0; i < SECTORS_PER_PAGE; i++)
@@ -72,24 +70,25 @@ read_from_swap (uint32_t index, void *frame)
                 frame + i * BLOCK_SECTOR_SIZE);
   }
   
+  lock_acquire (&swap_lock);
   bitmap_set (swap_map, index, false);
-  // lock_release (&swap_lock);
+  lock_release (&swap_lock);
   return true;
 }
 
 void
 free_swap (uint32_t index)
 {
-  // lock_acquire (&swap_lock);
+  lock_acquire (&swap_lock);
   bitmap_set (swap_map, index, false);
-  // lock_release (&swap_lock);
+  lock_release (&swap_lock);
 }
 
 static uint32_t
 get_next_block(void)
 {
-  // lock_acquire (&swap_lock);
+  lock_acquire (&swap_lock);
   uint32_t page_idx = bitmap_scan_and_flip (swap_map, 0, 1, false);
-  // lock_release (&swap_lock);
+  lock_release (&swap_lock);
   return page_idx;
 }

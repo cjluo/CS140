@@ -57,15 +57,15 @@ get_next_frame (void)
     frame_clock_point %= user_pool_page_cnt;
     
     struct frame_table_entry *f = &frame_table[frame_clock_point];
-    bool accessed = pagedir_is_accessed (t->pagedir, f->upage);
+    bool accessed = pagedir_is_accessed (f->pd, f->upage);
     if (accessed)
-      pagedir_set_accessed (t->pagedir, f->upage, false);
+      pagedir_set_accessed (f->pd, f->upage, false);
     else if (f->tid != t->tid || i >= 2 * user_pool_page_cnt)
     {
       void *next_frame = (void *)(frame_clock_point * PGSIZE + user_pool_base);
 
       if (get_swap_enable() 
-          && pagedir_is_dirty (thread_current ()->pagedir, f->upage))
+          && pagedir_is_dirty (f->pd, f->upage))
       {
         uint32_t index = write_to_swap(next_frame);
         uint32_t *pte = lookup_page (f->pd, f->upage, false);
@@ -77,7 +77,7 @@ get_next_frame (void)
           /* Use the AVL bits */
           *pte |= 1 << 9;
           *pte &= ~PTE_P;
-          // printf("write: index: %u upage: %x\n", index, (uint32_t)f->upage);
+          // printf("SWAP: tid: %d, write: index: %u upage: %x\n", f->tid, index, (uint32_t)f->upage);
           // if(f->upage == 0x804b000)
             // hex_dump(0, next_frame, PGSIZE, true);
         }
