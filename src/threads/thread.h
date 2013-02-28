@@ -112,6 +112,7 @@ struct thread
     struct semaphore thread_finish;
 
     int exit_status;
+    struct lock child_lock;
 #endif
 
 #ifdef VM

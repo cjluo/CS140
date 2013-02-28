@@ -179,10 +179,11 @@ init_pool (struct pool *p, void *base, size_t page_cnt, const char *name)
 }
 
 void
-set_user_pool_info (uint32_t *base, uint32_t *page_cnt)
+set_user_pool_info (uint32_t *base, uint32_t *page_cnt, struct lock **lock_pp)
 {
   *base = (uint32_t)user_pool.base;
   *page_cnt = (uint32_t)user_pool.page_cnt;
+  *lock_pp = &user_pool.lock;
 }
 
 /* Returns true if PAGE was allocated from POOL,

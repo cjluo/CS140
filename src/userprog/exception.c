@@ -12,6 +12,7 @@
 #include "threads/synch.h"
 #include "userprog/pagedir.h"
 #include "vm/swap.h"
+#include "vm/frame.h"
 #include "threads/pte.h"
 
 #define STACK_SIZE 8*1024*1024
@@ -175,16 +176,19 @@ page_fault (struct intr_frame *f)
         /* Recorde the index in SWAP */
         uint32_t index = *pte >> 12;
         // printf("read: index: %u upage: %x\n", index, (uint32_t)upage);
+        lock_acquire(&user_address_lock);
         void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
         if (read_from_swap (index, kpage) 
             && install_page (upage, kpage, true))
         {
             pagedir_set_dirty (thread_current ()->pagedir, upage, true);
+            lock_release(&user_address_lock);
             return;
         }
         else
         {
           palloc_free_page (kpage);
+          lock_release(&user_address_lock);
           sys_exit (-1);
         }
       }
@@ -195,14 +199,19 @@ page_fault (struct intr_frame *f)
         || f->esp - fault_addr == 32)
         && PHYS_BASE - fault_addr <= STACK_SIZE)
     {
+      lock_acquire(&user_address_lock);
       void *stack_page = palloc_get_page (PAL_USER | PAL_ZERO);
       // printf("stack: %x\n", (uint32_t)(upage));
       if (install_page (thread_current ()->user_stack -= PGSIZE, 
                         stack_page, true))
+      {
+        lock_release(&user_address_lock);
         return;
+      }
       else
       {
         palloc_free_page (stack_page);
+        lock_release(&user_address_lock);
         sys_exit (-1);
       }
     }

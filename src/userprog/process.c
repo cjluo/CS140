@@ -211,26 +211,28 @@ start_process (void *process_frame_struct)
 int
 process_wait (tid_t child_tid UNUSED) 
 { 
+  struct thread *cur = thread_current ();
   if(child_tid >= 0)
   {
-    struct thread *cur = thread_current ();
     struct list_elem *e;
 
     /* search the list of current children to find the children to wait,
        then wait for its finish semaphore
        and remove it from the list. */
-    enum intr_level old_level = intr_disable ();
+    lock_acquire (&cur->child_lock);
     for (e = list_begin (&cur->child_list);
          e != list_end (&cur->child_list);
          e = list_next(e))
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
       
+      ASSERT(is_thread(t));
+      
       if (t->tid == child_tid)
       {
-        intr_set_level (old_level);
+        lock_release (&cur->child_lock);
         sema_down (&t->thread_finish);
-        old_level = intr_disable ();
+        lock_acquire (&cur->child_lock);
         list_remove (e);
       }
     }
@@ -248,12 +250,12 @@ process_wait (tid_t child_tid UNUSED)
         list_remove (e);
         int return_value = f->status;
         free (f);
-        intr_set_level (old_level);
+        lock_release (&cur->child_lock);
         return return_value;
       }
-    }    
-    intr_set_level (old_level);
+    }
   }
+  lock_release (&cur->child_lock);
   
   return -1;
 }
@@ -276,36 +278,22 @@ process_exit (void)
     free (m);
   }
   
-  /* Destroy the current process's page directory and switch back
-     to the kernel-only page directory. */
-  pd = cur->pagedir;
-  if (pd != NULL) 
-    {
-      /* Correct ordering here is crucial.  We must set
-         cur->pagedir to NULL before switching page directories,
-         so that a timer interrupt can't switch back to the
-         process page directory.  We must activate the base page
-         directory before destroying the process's page
-         directory, or our active page directory will be one
-         that's been freed (and cleared). */
-      cur->pagedir = NULL;
-      pagedir_activate (NULL);
-      pagedir_destroy (pd);
-    }
-  
   enum intr_level old_level = intr_disable ();
 
   /* If the parent thread didn't exit before this thread, 
      push the return status to its parent's exit_child_list */
   if (is_thread (cur->parent))
   {
+    lock_acquire (&cur->parent->child_lock);
     struct exit_status_frame *f = malloc (sizeof (struct exit_status_frame));
     f->tid = cur->tid;
     f->status = cur->exit_status;
     list_push_back (&cur->parent->exit_child_list, &f->elem);
     list_remove (&cur->child_elem);
+    lock_release (&cur->parent->child_lock);
   }
-
+  
+  lock_acquire (&cur->parent->child_lock);
   /* free exit_child_list */
   while (!list_empty (&cur->exit_child_list))
   {
@@ -313,6 +301,7 @@ process_exit (void)
     struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
     free (f);
   }
+  lock_release (&cur->parent->child_lock);
 
   /* free file_list */
   while (!list_empty (&cur->file_list))
@@ -326,9 +315,27 @@ process_exit (void)
 
   intr_set_level (old_level);
   
+  /* Destroy the current process's page directory and switch back
+     to the kernel-only page directory. */
+  pd = cur->pagedir;
+  if (pd != NULL) 
+    {
+      lock_acquire(&user_address_lock);
+      /* Correct ordering here is crucial.  We must set
+         cur->pagedir to NULL before switching page directories,
+         so that a timer interrupt can't switch back to the
+         process page directory.  We must activate the base page
+         directory before destroying the process's page
+         directory, or our active page directory will be one
+         that's been freed (and cleared). */
+      cur->pagedir = NULL;
+      pagedir_activate (NULL);
+      pagedir_destroy (pd);
+      lock_release(&user_address_lock);
+    }
+  
   /* inform its parent that it finishes. */
   sema_up (&cur->thread_finish);
-  
 
 }
 
@@ -650,15 +657,21 @@ load_segment (struct page_table_entry *pte)
 {
   file_seek (pte->file, pte->ofs);
   /* Get a page of memory. */
+  lock_acquire(&user_address_lock);
+  
   uint8_t *kpage = palloc_get_page (PAL_USER);
   if (kpage == NULL)
+  {
+    lock_release(&user_address_lock);
     return false;
+  }
 
   /* Load this page. */
   if (file_read (pte->file, kpage, pte->read_bytes) != 
       (int) pte->read_bytes)
   {
     palloc_free_page (kpage);
+    lock_release(&user_address_lock);
     return false;
   }
   memset (kpage + pte->read_bytes, 0, pte->zero_bytes);
@@ -667,8 +680,10 @@ load_segment (struct page_table_entry *pte)
   if (!install_page (pte->upage, kpage, pte->writable)) 
   {
     palloc_free_page (kpage);
+    lock_release(&user_address_lock);
     return false; 
   }
+  lock_release(&user_address_lock);
   return true;
 }
 
