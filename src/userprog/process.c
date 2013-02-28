@@ -126,11 +126,11 @@ start_process (void *process_frame_struct)
   if (is_thread (p_frame->parent))
   {
     /* add the thread to its parent's child_list */
-    enum intr_level old_level = intr_disable ();
+    lock_acquire (&p_frame->parent->child_lock);
     list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
+    lock_release (&p_frame->parent->child_lock);
     child->parent = p_frame->parent;
-    intr_set_level (old_level);
   }
 
   p_frame->load_success = success;
@@ -234,6 +234,7 @@ process_wait (tid_t child_tid UNUSED)
         sema_down (&t->thread_finish);
         lock_acquire (&cur->child_lock);
         list_remove (e);
+        break;
       }
     }
 
@@ -277,8 +278,6 @@ process_exit (void)
     file_close (m->mfile);
     free (m);
   }
-  
-  enum intr_level old_level = intr_disable ();
 
   /* If the parent thread didn't exit before this thread, 
      push the return status to its parent's exit_child_list */
@@ -293,7 +292,7 @@ process_exit (void)
     lock_release (&cur->parent->child_lock);
   }
   
-  lock_acquire (&cur->parent->child_lock);
+  lock_acquire (&cur->child_lock);
   /* free exit_child_list */
   while (!list_empty (&cur->exit_child_list))
   {
@@ -301,7 +300,7 @@ process_exit (void)
     struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
     free (f);
   }
-  lock_release (&cur->parent->child_lock);
+  lock_release (&cur->child_lock);
 
   /* free file_list */
   while (!list_empty (&cur->file_list))
@@ -312,8 +311,6 @@ process_exit (void)
     file_close (f->file);
     free (f);
   }
-
-  intr_set_level (old_level);
   
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
