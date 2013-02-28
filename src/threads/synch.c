@@ -275,7 +275,10 @@ lock_release (struct lock *lock)
 
     ASSERT(!list_empty (&t->locks_list));
     list_remove (&lock->elem);
-    /* rollback priority */
+    
+    /* there is a potential bug in rollback priority left in */
+    /* project one. Since project 3 does not built one project1 */
+    /* so we disable priority rollback */
     // thread_priority_rollback (t, t->base_priority);
   }
   else
@@ -323,6 +326,7 @@ thread_priority_rollback (struct thread *thread, int priority)
        next_lock_elem = list_next(next_lock_elem))
   {
     struct lock *next_lock = list_entry (next_lock_elem, struct lock, elem);
+
     int next_priority = lock_highest_priority (next_lock);
     if (priority < next_priority)
       thread->priority = next_priority;

@@ -116,9 +116,9 @@ struct thread
 #endif
 
 #ifdef VM
-    struct hash sup_page_table;
-    void *user_stack;
-    struct list mmap_list;
+    struct hash sup_page_table;         /* supplimental page table */
+    void *user_stack;                   /* user stack page pointer */
+    struct list mmap_list;              /* mmap_list */
 #endif
 
     /* Owned by thread.c. */
