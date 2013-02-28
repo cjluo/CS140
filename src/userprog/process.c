@@ -219,6 +219,7 @@ process_wait (tid_t child_tid UNUSED)
     /* search the list of current children to find the children to wait,
        then wait for its finish semaphore
        and remove it from the list. */
+
     lock_acquire (&cur->child_lock);
     for (e = list_begin (&cur->child_list);
          e != list_end (&cur->child_list);
@@ -226,14 +227,13 @@ process_wait (tid_t child_tid UNUSED)
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
       
-      ASSERT(is_thread(t));
+      ASSERT(is_thread(t))
       
       if (t->tid == child_tid)
       {
         lock_release (&cur->child_lock);
         sema_down (&t->thread_finish);
         lock_acquire (&cur->child_lock);
-        list_remove (e);
         break;
       }
     }
@@ -268,17 +268,8 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  struct list_elem *e;
-  /* free mmap_list */
-  while (!list_empty (&cur->mmap_list))
-  {
-    e = list_pop_front (&cur->mmap_list);
-    struct mmap_frame *m = list_entry (e, struct mmap_frame, elem);
-    mmap_remove (m);
-    file_close (m->mfile);
-    free (m);
-  }
-
+  lock_acquire (&cur->child_lock);
+  
   /* If the parent thread didn't exit before this thread, 
      push the return status to its parent's exit_child_list */
   if (is_thread (cur->parent))
@@ -289,10 +280,12 @@ process_exit (void)
     f->status = cur->exit_status;
     list_push_back (&cur->parent->exit_child_list, &f->elem);
     list_remove (&cur->child_elem);
+
     lock_release (&cur->parent->child_lock);
   }
   
-  lock_acquire (&cur->child_lock);
+  struct list_elem *e;
+  
   /* free exit_child_list */
   while (!list_empty (&cur->exit_child_list))
   {
@@ -310,6 +303,16 @@ process_exit (void)
     
     file_close (f->file);
     free (f);
+  }
+  
+  /* free mmap_list */
+  while (!list_empty (&cur->mmap_list))
+  {
+    e = list_pop_front (&cur->mmap_list);
+    struct mmap_frame *m = list_entry (e, struct mmap_frame, elem);
+    mmap_remove (m);
+    file_close (m->mfile);
+    free (m);
   }
   
   /* Destroy the current process's page directory and switch back
@@ -333,7 +336,6 @@ process_exit (void)
   
   /* inform its parent that it finishes. */
   sema_up (&cur->thread_finish);
-
 }
 
 /* Sets up the CPU for running user code in the current

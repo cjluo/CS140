@@ -6,7 +6,7 @@
 #include "userprog/pagedir.h"
 #include "vm/swap.h"
 #include "threads/pte.h"
-#define USER_FRAME_NUMBER 1024
+#define USER_FRAME_NUMBER 512
 
 static struct frame_table_entry frame_table[USER_FRAME_NUMBER];
 static uint32_t frame_clock_point;
