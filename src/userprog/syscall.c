@@ -6,6 +6,7 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "threads/malloc.h"
+#include "threads/pte.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 #include "userprog/exception.h"
@@ -304,12 +305,7 @@ sys_write (int fd, const void *buffer, unsigned size)
   {
     struct fd_frame *f = fd_to_fd_frame (fd);
     if(f)
-    {
-      lock_acquire (&file_lock);    
-      int return_value = file_write (f->file, buffer, size);
-      lock_release (&file_lock);
-      return (int) return_value;
-    }
+      return pinned_file_write (f->file, buffer, size);
   }
   return -1;
 }
@@ -494,4 +490,33 @@ mmap_remove (struct mmap_frame *m)
     for (i = 0; i < m->page_cnt; i++)
       delete_sup_page(m->upage + i * PGSIZE);
   }
+}
+
+int
+pinned_file_write (struct file* file, const void *buffer, unsigned size)
+{
+  void *upage;
+  for (upage = pg_round_down (buffer);
+       upage <= pg_round_down (buffer + size);
+       upage += PGSIZE)
+  {
+    uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, true);
+    *pte |= PTE_AVL2;
+    if ((*pte & PTE_P) == 0)
+      if(!load_page(upage))
+        sys_exit(-1);
+  }
+
+  lock_acquire (&file_lock);    
+  int return_value = file_write (file, buffer, size);
+  lock_release (&file_lock);
+  
+  for (upage = pg_round_down (buffer);
+       upage <= pg_round_down (buffer + size);
+       upage += PGSIZE)
+  {
+    uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, false);
+    *pte &= ~PTE_AVL2;
+  }
+  return return_value;
 }

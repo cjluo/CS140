@@ -86,24 +86,23 @@ get_next_frame (void)
     else if (f->t != thread_current () || i >= 2 * user_pool_page_cnt)
     {
       if (pagedir_is_dirty (f->t->pagedir, f->upage))
-      {
+      { 
+        uint32_t *pte = lookup_page (f->t->pagedir, f->upage, false);
+        ASSERT (pte != NULL && (*pte & PTE_P) != 0)
+        
+        if ((*pte & PTE_AVL2) != 0)
+          continue;
+        
         /* Swap to disk: notice, at this time, f->could still use this page*/
         uint32_t index = write_to_swap(next_frame);
-        
-        uint32_t *pte = lookup_page (f->t->pagedir, f->upage, false);
-        if (pte != NULL && (*pte & PTE_P) != 0)
-        {
-          /* Clear the kernal page mapping */
-          *pte &= ~PTE_P;
-          *pte &= PTE_FLAGS;
-          /* Use the AVL bits */
-          *pte |= 1 << 9;
-          /* Set it to be accessed to prevent from immediate pageout */
-          pagedir_set_accessed (f->t->pagedir, f->upage, true);
-        }
-        else
-          PANIC ("Frame not mapped!!!");
-        
+        /* Clear the kernal page mapping */
+        *pte &= ~PTE_P;
+        *pte &= PTE_FLAGS;
+        /* Use the AVL bits */
+        *pte |= PTE_AVL1;
+        /* Set it to be accessed to prevent from immediate pageout */
+        pagedir_set_accessed (f->t->pagedir, f->upage, true);
+          
         /* Record index into page table */
         *pte |= index << 12;
       }

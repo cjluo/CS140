@@ -2,8 +2,10 @@
 #include "vm/page.h"
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
+#include "threads/palloc.h"
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
+#include "vm/frame.h"
 
 /* less function */
 bool
@@ -88,10 +90,10 @@ delete_sup_page (uint8_t *upage)
     if (pagedir_is_dirty (thread_current ()->pagedir, delete->upage)
         && delete->writable)
     {
-      lock_acquire (&file_lock);
       file_seek (delete->file, delete->ofs);
-      int return_value = file_write (delete->file, delete->upage, delete->read_bytes);
-      lock_release (&file_lock);
+      int return_value = pinned_file_write (delete->file, 
+                                            delete->upage, 
+                                            delete->read_bytes);
       if (return_value != (int)delete->read_bytes)
       {
         free (delete);
@@ -100,7 +102,7 @@ delete_sup_page (uint8_t *upage)
     }
     free (delete);
   }
-  // need to delete page later;
+  
   return;
 }
 

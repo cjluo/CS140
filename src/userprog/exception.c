@@ -162,30 +162,9 @@ page_fault (struct intr_frame *f)
   if (not_present && !is_kernel_vaddr (fault_addr))
   {
     void *upage = pg_round_down (fault_addr);
-
-    /* First Check Swap */
-    uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
-      
-    if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
-    {
-      /* Recorde the index in SWAP */
-      uint32_t index = *pte >> 12;
-      
-      lock_acquire(&user_address_lock);
-      void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-      if (read_from_swap (index, kpage) && install_page (upage, kpage, true))
-      {
-        /* We assume all the pages SWAP to the disks are dirty */
-        pagedir_set_dirty (thread_current ()->pagedir, upage, true);
-        lock_release(&user_address_lock);
-        return;
-      }
-      
-      /* Else the page in from SWAP SLOT is not correct */
-      palloc_free_page (kpage);
-      lock_release(&user_address_lock);
-      sys_exit (-1);
-    }
+    
+    if (load_page (upage))
+      return;
 
     /* Second check stack growth */
     if ((f->esp - fault_addr == 4 
@@ -204,12 +183,8 @@ page_fault (struct intr_frame *f)
       lock_release(&user_address_lock);
       sys_exit (-1);
     }
-    
-    /* Finally we check the supplemental page table */
-    struct page_table_entry *spte = get_sup_page (upage);
-    if(spte != NULL && load_segment (spte))
-      return;
   }
+  
   
   /* All the other faults we just terminate the user program */
   sys_exit (-1);
@@ -225,6 +200,39 @@ page_fault (struct intr_frame *f)
   kill (f);
 }
 
+bool
+load_page(void *upage)
+{
+  /* First Check Swap */
+  uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
+
+  if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL1) > 0)
+  {
+    /* Recorde the index in SWAP */
+    uint32_t index = *pte >> 12;
+    
+    lock_acquire(&user_address_lock);
+    void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+    if (read_from_swap (index, kpage) && install_page (upage, kpage, true))
+    {
+      /* We assume all the pages SWAP to the disks are dirty */
+      pagedir_set_dirty (thread_current ()->pagedir, upage, true);
+      lock_release(&user_address_lock);
+      return true;
+    }
+      
+    /* Else the page in from SWAP SLOT is not correct */
+    palloc_free_page (kpage);
+    lock_release(&user_address_lock);
+    return false;
+  }
+    
+  /* Finally we check the supplemental page table */
+  struct page_table_entry *spte = get_sup_page (upage);
+  if(spte != NULL && load_segment (spte))
+    return true;
+  return false;
+}
 
 
 
