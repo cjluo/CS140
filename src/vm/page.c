@@ -91,9 +91,10 @@ delete_sup_page (uint8_t *upage)
         && delete->writable)
     {
       file_seek (delete->file, delete->ofs);
-      int return_value = pinned_file_write (delete->file, 
-                                            delete->upage, 
-                                            delete->read_bytes);
+      int return_value = pinned_file_op (delete->file, 
+                                         delete->upage, 
+                                         delete->read_bytes,
+                                         true);
       if (return_value != (int)delete->read_bytes)
       {
         free (delete);
@@ -102,6 +103,8 @@ delete_sup_page (uint8_t *upage)
     }
     free (delete);
   }
+  
+  pagedir_set_dirty (thread_current ()->pagedir, upage, false);
   
   return;
 }

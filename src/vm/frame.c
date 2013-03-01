@@ -116,3 +116,9 @@ get_next_frame (void)
   lock_release (frame_lock);
   PANIC ("No available frame!!!"); 
 }
+
+void
+kill_frame_table (void)
+{
+  free (frame_table);
+}

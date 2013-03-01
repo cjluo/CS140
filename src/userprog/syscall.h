@@ -25,6 +25,6 @@ void syscall_init (void);
 int sys_exit (int);
 void mmap_remove (struct mmap_frame *);
 
-int pinned_file_write (struct file*, const void *, unsigned);
+int pinned_file_op (struct file*, void *, unsigned, bool);
 
 #endif /* userprog/syscall.h */

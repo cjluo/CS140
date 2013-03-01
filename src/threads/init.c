@@ -141,6 +141,7 @@ main (void)
   run_actions (argv);
 
   /* Finish up. */
+  kill_frame_table ();
   shutdown ();
   thread_exit ();
 }

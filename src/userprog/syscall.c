@@ -271,12 +271,7 @@ sys_read (int fd, void *buffer, unsigned size)
   
   struct fd_frame *f = fd_to_fd_frame (fd);
   if (f)
-  {
-    lock_acquire (&file_lock);
-    off_t return_value = file_read (f->file, buffer, size);
-    lock_release (&file_lock);
-    return (int) return_value;
-  }
+    return pinned_file_op (f->file, buffer, size, false);
   
   return -1;
 }
@@ -305,7 +300,7 @@ sys_write (int fd, const void *buffer, unsigned size)
   {
     struct fd_frame *f = fd_to_fd_frame (fd);
     if(f)
-      return pinned_file_write (f->file, buffer, size);
+      return pinned_file_op (f->file, (void *)buffer, size, true);
   }
   return -1;
 }
@@ -493,7 +488,7 @@ mmap_remove (struct mmap_frame *m)
 }
 
 int
-pinned_file_write (struct file* file, const void *buffer, unsigned size)
+pinned_file_op (struct file* file, void *buffer, unsigned size, bool is_write)
 {
   void *upage;
   for (upage = pg_round_down (buffer);
@@ -503,12 +498,15 @@ pinned_file_write (struct file* file, const void *buffer, unsigned size)
     uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, true);
     *pte |= PTE_AVL2;
     if ((*pte & PTE_P) == 0)
-      if(!load_page(upage))
-        sys_exit(-1);
+      load_page(upage);
   }
 
   lock_acquire (&file_lock);    
-  int return_value = file_write (file, buffer, size);
+  int return_value;
+  if (is_write)
+    return_value = file_write (file, buffer, size);
+  else
+    return_value = file_read (file, buffer, size);
   lock_release (&file_lock);
   
   for (upage = pg_round_down (buffer);
