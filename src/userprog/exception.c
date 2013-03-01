@@ -163,6 +163,10 @@ page_fault (struct intr_frame *f)
   {
     void *upage = pg_round_down (fault_addr);
     
+    /* check the stack and heap not meet */
+    if (upage > f->esp)
+      sys_exit(-1);
+    
     if (load_page (upage))
       return;
 
@@ -203,6 +207,7 @@ page_fault (struct intr_frame *f)
 bool
 load_page(void *upage)
 {
+  
   /* First Check Swap */
   uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
 

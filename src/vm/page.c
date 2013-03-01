@@ -104,6 +104,7 @@ delete_sup_page (uint8_t *upage)
     free (delete);
   }
   
+  /* This page is clean now, it will be evicted at any time */
   pagedir_set_dirty (thread_current ()->pagedir, upage, false);
   
   return;

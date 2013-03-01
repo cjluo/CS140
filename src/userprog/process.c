@@ -314,6 +314,9 @@ process_exit (void)
     file_close (m->mfile);
     free (m);
   }
+
+  /* free supplimental page table */
+  hash_destroy (&cur->sup_page_table, NULL);
   
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -705,7 +708,7 @@ load_segment (struct page_table_entry *spte)
   if (spte->type == M_MAP)
     lock_acquire (&file_lock);
   bool file_read_success = (file_read (spte->file, kpage, spte->read_bytes) 
-                       != (int) spte->read_bytes);
+                            != (int) spte->read_bytes);
   if (spte->type == M_MAP)
     lock_release (&file_lock);
   if (file_read_success)
