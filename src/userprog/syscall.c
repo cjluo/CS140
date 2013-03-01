@@ -10,6 +10,7 @@
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
 #include "userprog/exception.h"
+#include "vm/frame.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "devices/shutdown.h"
@@ -172,7 +173,9 @@ sys_exec (const char *cmd_line)
   /* avoid argument overflow */
   if (strlen (cmd_line) + 1 > 4096)
     sys_exit (-1);
+
   int tid = process_execute (cmd_line);
+
   return tid;
 }
 
@@ -188,9 +191,11 @@ sys_create (const char *file, unsigned initial_size)
 { 
   /* test address */
   check_valid_address (file);
+  pin_upage (pg_round_down (file));
   lock_acquire (&file_lock);
   bool return_value = filesys_create (file, initial_size);
   lock_release (&file_lock);
+  unpin_upage (pg_round_down (file));
   return (int) return_value;
 }
 
@@ -214,20 +219,24 @@ sys_open (const char *file)
   /* test address */
   check_valid_address (file);
 
+  pin_upage (pg_round_down (file));
   lock_acquire (&file_lock);
   struct file *f = filesys_open (file);
   lock_release (&file_lock);
+  unpin_upage (pg_round_down (file));
+  
   if (!f)
     return -1;
 
-  
   struct fd_frame *fd_open_frame = (struct fd_frame *) malloc (
                                     sizeof (struct fd_frame));
   if(!fd_open_frame)
   {
+    pin_upage (pg_round_down (f));
     lock_acquire (&file_lock);
     file_close (f);
     lock_release (&file_lock);
+    unpin_upage (pg_round_down (f));
     return -1;
   }
   fd_open_frame->file = f;
@@ -441,7 +450,6 @@ sys_mmap (int fd, void *addr)
   struct file* mfile = file_reopen(f->file);
   lock_release (&file_lock);
   
-  
   if (!lazy_load_segment (mfile, 0, (void *) addr,
                           read_bytes, zero_bytes, true, M_MAP))
     return -1;
@@ -494,13 +502,8 @@ pinned_file_op (struct file* file, void *buffer, unsigned size, bool is_write)
   for (upage = pg_round_down (buffer);
        upage <= pg_round_down (buffer + size);
        upage += PGSIZE)
-  {
-    uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, true);
-    *pte |= PTE_AVL2;
-    if ((*pte & PTE_P) == 0)
-      load_page(upage);
-  }
-
+    pin_upage (upage);
+    
   lock_acquire (&file_lock);    
   int return_value;
   if (is_write)
@@ -512,9 +515,7 @@ pinned_file_op (struct file* file, void *buffer, unsigned size, bool is_write)
   for (upage = pg_round_down (buffer);
        upage <= pg_round_down (buffer + size);
        upage += PGSIZE)
-  {
-    uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, false);
-    *pte &= ~PTE_AVL2;
-  }
+    unpin_upage (upage);
+
   return return_value;
 }

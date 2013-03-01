@@ -18,6 +18,9 @@ void frame_set_upage (void * , void *);
 void *get_next_frame (void);
 void kill_frame_table (void);
 
+void pin_upage (void *);
+void unpin_upage (void *);
+
 /* this lock is just user pool lock */
 struct lock *frame_lock;
 

@@ -5,6 +5,7 @@
 #include "threads/malloc.h"
 #include "threads/pte.h"
 #include "userprog/pagedir.h"
+#include "userprog/exception.h"
 #include "vm/swap.h"
 #include "vm/frame.h"
 
@@ -121,4 +122,22 @@ void
 kill_frame_table (void)
 {
   free (frame_table);
+}
+
+void
+pin_upage (void *upage)
+{
+  ASSERT (!is_kernel_vaddr (upage));
+  uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, true);
+  
+  *pte |= PTE_AVL2;
+  if ((*pte & PTE_P) == 0)
+    load_page(upage);
+}
+
+void
+unpin_upage (void *upage)
+{
+  uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, false);
+  *pte &= ~PTE_AVL2;
 }
