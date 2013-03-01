@@ -1,8 +1,9 @@
 #ifndef VM_FRAME_H
 #define VM_FRAME_H
 #include "threads/thread.h"
-#include <stdint.h>
 #include "threads/synch.h"
+#include <stdint.h>
+
 
 struct frame_table_entry
 {
@@ -11,9 +12,15 @@ struct frame_table_entry
 };
 
 void frame_table_init (void);
+
+/* this is to link the frame table entry with user virtual address */
 void frame_set_upage (void * , void *);
 void *get_next_frame (void);
+
+/* this lock is just user pool lock */
 struct lock *frame_lock;
+
+/* this lock is designed to synchronize palloc_get_page and install_page*/
 struct lock user_address_lock;
 
 #endif

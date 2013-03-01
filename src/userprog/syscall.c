@@ -4,14 +4,15 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-#include "devices/shutdown.h"
 #include "threads/synch.h"
 #include "threads/malloc.h"
-#include "filesys/filesys.h"
-#include "filesys/file.h"
-#include "devices/input.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include "userprog/exception.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "devices/shutdown.h"
+#include "devices/input.h"
 #include <string.h>
 #include "lib/user/syscall.h"
 #include <round.h>
@@ -423,27 +424,32 @@ sys_mmap (int fd, void *addr)
     return -1;
 
   uint32_t read_bytes = file_size;
-  uint32_t zero_bytes = (ROUND_UP (read_bytes, PGSIZE)
-                                - read_bytes);
+  uint32_t zero_bytes = (ROUND_UP (read_bytes, PGSIZE) - read_bytes);
 
   /* validate file */
   struct fd_frame *f = fd_to_fd_frame (fd);
   if (f == NULL)
     return -1;
 
-  //CHECK STACK COLLISION
+  /* Check stack collision, we assume the stack size is 8MB */
+  if (addr + file_size >= PHYS_BASE - STACK_SIZE)
+    return -1;
+  
   struct thread *t = thread_current ();
   void *tmp_address = addr;
-  while (file_size > 0) {
+  while (file_size > 0) 
+  {
     if (pagedir_get_page (t->pagedir, tmp_address) != NULL)
       return -1;
     file_size -= PGSIZE;
     tmp_address += PGSIZE;
   }
   
+  /* reopen file */
   lock_acquire (&file_lock);
   struct file* mfile = file_reopen(f->file);
   lock_release (&file_lock);
+  
   
   if (!lazy_load_segment (mfile, 0, (void *) addr,
                           read_bytes, zero_bytes, true, M_MAP))

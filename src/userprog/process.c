@@ -439,17 +439,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
-  
-
-/*
-  // malloc with PAL_USER page
-  t->pagedir = palloc_get_page (PAL_USER);
-  if (t->pagedir != NULL)
-    memcpy (t->pagedir, init_page_dir, PGSIZE);
-  if (t->pagedir == NULL) 
-    goto done;
-  process_activate ();
-*/
 
   /* Open executable file. */
   file = filesys_open (file_name);
@@ -473,7 +462,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: error loading executable\n", file_name);
       goto done; 
     }
-
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -517,7 +505,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
                   read_bytes = page_offset + phdr.p_filesz;
                   zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
                                 - read_bytes);
-                  //printf("\n##read Size: %d\n", read_bytes);
                 }
               else 
                 {
@@ -608,6 +595,54 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
   return true;
 }
 
+/* Lazy loads a segment starting at offset OFS in FILE at address
+   UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
+   memory are initialized, as follows:
+
+        - READ_BYTES bytes at UPAGE must be read from FILE
+          starting at offset OFS.
+
+        - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
+
+   The pages initialized by this function must be writable by the
+   user process if WRITABLE is true, read-only otherwise.
+
+   Return true if successful, false if a memory allocation error
+   or disk read error occurs. */
+bool
+lazy_load_segment (struct file *file, off_t ofs, uint8_t *upage,
+                   uint32_t read_bytes, uint32_t zero_bytes,
+                   bool writable, enum hash_type type)
+{
+  ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
+  ASSERT (pg_ofs (upage) == 0);
+  ASSERT (ofs % PGSIZE == 0);
+
+  file_seek (file, ofs);
+  while (read_bytes > 0 || zero_bytes > 0) 
+    {
+      /* Calculate how to fill this page.
+         We will read PAGE_READ_BYTES bytes from FILE
+         and zero the final PAGE_ZERO_BYTES bytes. */
+      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+      size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+      if (!sup_insert (file, ofs, upage, page_read_bytes,
+                       page_zero_bytes, writable, type))
+        return false;
+
+      /* Advance. */
+      read_bytes -= page_read_bytes;
+      zero_bytes -= page_zero_bytes;
+      upage += PGSIZE;
+
+      // update offset of the file seeker.
+      ofs += page_read_bytes;
+
+    }
+  return true;
+}
+
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
@@ -651,13 +686,14 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
+/* Load the segment record in the supplement page table entry */ 
 bool 
-load_segment (struct page_table_entry *pte)
+load_segment (struct page_table_entry *spte)
 {
-  file_seek (pte->file, pte->ofs);
-  /* Get a page of memory. */
+  file_seek (spte->file, spte->ofs);
+
   lock_acquire(&user_address_lock);
-  
+  /* Get a page of memory. */
   uint8_t *kpage = palloc_get_page (PAL_USER);
   if (kpage == NULL)
   {
@@ -666,17 +702,22 @@ load_segment (struct page_table_entry *pte)
   }
 
   /* Load this page. */
-  if (file_read (pte->file, kpage, pte->read_bytes) != 
-      (int) pte->read_bytes)
+  if (spte->type == M_MAP)
+    lock_acquire (&file_lock);
+  bool file_read_success = (file_read (spte->file, kpage, spte->read_bytes) 
+                       != (int) spte->read_bytes);
+  if (spte->type == M_MAP)
+    lock_release (&file_lock);
+  if (file_read_success)
   {
     palloc_free_page (kpage);
     lock_release(&user_address_lock);
     return false;
   }
-  memset (kpage + pte->read_bytes, 0, pte->zero_bytes);
+  memset (kpage + spte->read_bytes, 0, spte->zero_bytes);
 
   /* Add the page to the process's address space. */
-  if (!install_page (pte->upage, kpage, pte->writable)) 
+  if (!install_page (spte->upage, kpage, spte->writable)) 
   {
     palloc_free_page (kpage);
     lock_release(&user_address_lock);

@@ -5,6 +5,4 @@ void swap_table_init (void);
 uint32_t write_to_swap (void *);
 bool read_from_swap (uint32_t, void *);
 void free_swap (uint32_t index);
-inline bool get_swap_enable(void);
-
 #endif

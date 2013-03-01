@@ -45,6 +45,7 @@ pagedir_destroy (uint32_t *pd)
         for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
           if (*pte & PTE_P) 
             palloc_free_page (pte_get_page (*pte));
+          /* Free the SWAP space */
           else if((*pte & PTE_AVL) > 0)
           {
             uint32_t index = *pte >> 12;

@@ -37,7 +37,6 @@ struct pool
 
 /* Two pools: one for kernel data, one for user pages. */
 static struct pool kernel_pool, user_pool;
-static uint32_t user_pool_size;
 
 static void init_pool (struct pool *, void *base, size_t page_cnt,
                        const char *name);
@@ -115,6 +114,7 @@ void *
 palloc_get_page (enum palloc_flags flags) 
 {
   void* frame = palloc_get_multiple (flags, 1);
+  /* if frame == NULL, pageout one page and then use that frame space */
   if (frame == NULL && (flags & PAL_USER))
     return get_next_frame();
   else

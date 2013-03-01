@@ -1,26 +1,32 @@
 #include <stdio.h>
-#include "vm/frame.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
+#include "threads/pte.h"
 #include "userprog/pagedir.h"
 #include "vm/swap.h"
-#include "threads/pte.h"
-#define USER_FRAME_NUMBER 512
+#include "vm/frame.h"
 
-static struct frame_table_entry frame_table[USER_FRAME_NUMBER];
-static uint32_t frame_clock_point;
+static struct frame_table_entry *frame_table;
+static uint32_t frame_clock_point;    /* clock point to trace each algorithm */
 static uint32_t user_pool_base;
 static uint32_t user_pool_page_cnt;
 
 void
 frame_table_init (void)
 {
+  /* pull user pool information out to frame table */
   set_user_pool_info(&user_pool_base, &user_pool_page_cnt, &frame_lock);
-  if (user_pool_page_cnt > USER_FRAME_NUMBER)
-    user_pool_page_cnt = USER_FRAME_NUMBER;
+  
+  /* init the frame table */
+  frame_table = malloc(sizeof (struct frame_table_entry) * user_pool_page_cnt);
+  
   frame_clock_point = 0;
+  
   lock_init(&user_address_lock);
+  
+  /* clear the frame table */
   uint32_t i;
   for (i = 0; i < user_pool_page_cnt; i++)
   {
@@ -33,13 +39,24 @@ void
 frame_set_upage (void* kpage, void* upage)
 {
   lock_acquire (frame_lock);
+  /* calculate the index based on kpage for the frame table */
   uint32_t index = ((uint32_t)kpage - user_pool_base)/PGSIZE;
+  
   ASSERT(index < user_pool_page_cnt);
+  /* set the frame tabel with thread and virtual address */
   frame_table[index].upage = upage;
   frame_table[index].t = thread_current ();
-  // printf("index: %u tid %d\n", index, (int)frame_table[index].tid);
+  
   lock_release (frame_lock);
 }
+
+
+/* In get_next_frame we walk through the page table three times */
+/* The first walk will return the frame not accessed and        */
+/* clear the accessed bits                                      */
+/* The second walk will return the frame that is not used in the*/
+/* current threads                                              */
+/* The third walk will return whatever frame available          */
 
 void *
 get_next_frame (void)
@@ -49,46 +66,48 @@ get_next_frame (void)
   uint32_t i;
   for (i = 0; i < user_pool_page_cnt*3; i++)
   {
+    /* frame_clock_point increment */
     frame_clock_point++;
     frame_clock_point %= user_pool_page_cnt;
     
     struct frame_table_entry *f = &frame_table[frame_clock_point];
     
+    /* frame_clock_point increment */
     void *next_frame = (void *)(frame_clock_point * PGSIZE + user_pool_base);
     
-    if (f->t == NULL)
-    {
-      PANIC ("frame not set!!!");
-    }
-    if (!is_thread(f->t) || f->t->pagedir == NULL)
-    {
-      PANIC ("thread exist not clean");
-    }
+    ASSERT (is_thread(f->t) && f->t->pagedir != NULL)
     
     bool accessed = pagedir_is_accessed (f->t->pagedir, f->upage);
+    
+    /* if accessed, clear the access bit */
     if (accessed)
       pagedir_set_accessed (f->t->pagedir, f->upage, false);
+    /* otherwize page out if satifies the following condition */
     else if (f->t != thread_current () || i >= 2 * user_pool_page_cnt)
     {
-      if (get_swap_enable() 
-          && pagedir_is_dirty (f->t->pagedir, f->upage))
+      if (pagedir_is_dirty (f->t->pagedir, f->upage))
       {
+        /* Swap to disk: notice, at this time, f->could still use this page*/
+        uint32_t index = write_to_swap(next_frame);
+        
         uint32_t *pte = lookup_page (f->t->pagedir, f->upage, false);
         if (pte != NULL && (*pte & PTE_P) != 0)
         {
-          /* Recorde the index in SWAP */
+          /* Clear the kernal page mapping */
+          *pte &= ~PTE_P;
           *pte &= PTE_FLAGS;
           /* Use the AVL bits */
           *pte |= 1 << 9;
-          *pte &= ~PTE_P;
-          // printf("SWAP: tid: %d, write: index: %u upage: %x\n", f->tid, index, (uint32_t)f->upage);
+          /* Set it to be accessed to prevent from immediate pageout */
           pagedir_set_accessed (f->t->pagedir, f->upage, true);
         }
         else
           PANIC ("Frame not mapped!!!");
-        uint32_t index = write_to_swap(next_frame);
+        
+        /* Record index into page table */
         *pte |= index << 12;
       }
+      
       pagedir_clear_page (f->t->pagedir, f->upage);
       lock_release (frame_lock);
       return next_frame;
@@ -96,5 +115,5 @@ get_next_frame (void)
   }
   
   lock_release (frame_lock);
-  PANIC ("Kernel bug - No available frame!"); 
+  PANIC ("No available frame!!!"); 
 }

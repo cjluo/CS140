@@ -12,49 +12,43 @@ static struct lock swap_lock;
 
 static uint32_t SECTORS_PER_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
 static uint32_t get_next_block(void);
-static bool swap_enable = false;
-
-inline bool
-get_swap_enable(void)
-{
-  return swap_enable;
-}
 
 void
 swap_table_init (void)
 {
   lock_init (&swap_lock);
   swap_block = block_get_role (BLOCK_SWAP);
-  if (swap_block != NULL)
-  {
-    swap_enable = true;
-    swap_map = bitmap_create (block_size(swap_block) / SECTORS_PER_PAGE);
-    if (swap_map == NULL)
-      PANIC("Create bitmap failed");
-    bitmap_set_all (swap_map, false);
-    
-  }
+  if (swap_block == NULL)
+    PANIC("No SWAP device allocated !!!");
+  /* create bitmap as swap table data structure */
+  swap_map = bitmap_create (block_size(swap_block) / SECTORS_PER_PAGE);
+  if (swap_map == NULL)
+    PANIC("Create bitmap failed !!!");
+  bitmap_set_all (swap_map, false);
 }
 
 uint32_t
 write_to_swap (void *frame)
 {
+  /* allocate from swap table */
   uint32_t index = get_next_block();
   if (index == BITMAP_ERROR)
-    PANIC ("Not enough SWAP space!!");
+    PANIC ("No enough SWAP space!!");
+  
+  /* write the page to the swap */
   uint32_t i;
   for(i = 0; i < SECTORS_PER_PAGE; i++)
   {
     block_write (swap_block, index * SECTORS_PER_PAGE + i,
                  frame + i * BLOCK_SECTOR_SIZE);
   }
-  
   return index;
 }
 
 bool
 read_from_swap (uint32_t index, void *frame)
 {
+  /* test if swap exist */
   lock_acquire (&swap_lock);
   if (bitmap_test (swap_map, index) == false)
   {
@@ -63,6 +57,7 @@ read_from_swap (uint32_t index, void *frame)
   }
   lock_release (&swap_lock);
   
+  /* read from swap slot */
   uint32_t i;
   for(i = 0; i < SECTORS_PER_PAGE; i++)
   {
@@ -70,12 +65,14 @@ read_from_swap (uint32_t index, void *frame)
                 frame + i * BLOCK_SECTOR_SIZE);
   }
   
+  /* clear the swap table bit */
   lock_acquire (&swap_lock);
   bitmap_set (swap_map, index, false);
   lock_release (&swap_lock);
   return true;
 }
 
+/* free the swap table just by setting the bit to be false */
 void
 free_swap (uint32_t index)
 {
@@ -84,6 +81,7 @@ free_swap (uint32_t index)
   lock_release (&swap_lock);
 }
 
+/* get the next available swap slot */
 static uint32_t
 get_next_block(void)
 {

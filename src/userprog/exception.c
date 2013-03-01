@@ -1,21 +1,19 @@
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
-#include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "userprog/syscall.h"
+#include "threads/pte.h"
 #include "threads/vaddr.h"
-#include "vm/page.h"
-#include "userprog/process.h"
 #include "threads/palloc.h"
 #include "threads/synch.h"
+#include "userprog/syscall.h"
+#include "userprog/gdt.h"
+#include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include "vm/page.h"
 #include "vm/swap.h"
 #include "vm/frame.h"
-#include "threads/pte.h"
-
-#define STACK_SIZE 8*1024*1024
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -160,75 +158,60 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
   
+  /* user address fault */
   if (not_present && !is_kernel_vaddr (fault_addr))
   {
-    // user address fault
     void *upage = pg_round_down (fault_addr);
-    
-    /* first check swap */
-    if(get_swap_enable())
-    {
-      /* Check Swap */
-      uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
+
+    /* First Check Swap */
+    uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
       
-      if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
+    if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL) > 0)
+    {
+      /* Recorde the index in SWAP */
+      uint32_t index = *pte >> 12;
+      
+      lock_acquire(&user_address_lock);
+      void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+      if (read_from_swap (index, kpage) && install_page (upage, kpage, true))
       {
-        /* Recorde the index in SWAP */
-        uint32_t index = *pte >> 12;
-        // printf("read: index: %u upage: %x\n", index, (uint32_t)upage);
-        lock_acquire(&user_address_lock);
-        void *kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-        if (read_from_swap (index, kpage) 
-            && install_page (upage, kpage, true))
-        {
-            pagedir_set_dirty (thread_current ()->pagedir, upage, true);
-            lock_release(&user_address_lock);
-            return;
-        }
-        else
-        {
-          palloc_free_page (kpage);
-          lock_release(&user_address_lock);
-          sys_exit (-1);
-        }
+        /* We assume all the pages SWAP to the disks are dirty */
+        pagedir_set_dirty (thread_current ()->pagedir, upage, true);
+        lock_release(&user_address_lock);
+        return;
       }
+      
+      /* Else the page in from SWAP SLOT is not correct */
+      palloc_free_page (kpage);
+      lock_release(&user_address_lock);
+      sys_exit (-1);
     }
 
-    /* second check stack growth */
+    /* Second check stack growth */
     if ((f->esp - fault_addr == 4 
         || f->esp - fault_addr == 32)
         && PHYS_BASE - fault_addr <= STACK_SIZE)
     {
       lock_acquire(&user_address_lock);
       void *stack_page = palloc_get_page (PAL_USER | PAL_ZERO);
-      // printf("stack: %x\n", (uint32_t)(upage));
       if (install_page (thread_current ()->user_stack -= PGSIZE, 
                         stack_page, true))
       {
         lock_release(&user_address_lock);
         return;
       }
-      else
-      {
-        palloc_free_page (stack_page);
-        lock_release(&user_address_lock);
-        sys_exit (-1);
-      }
+      palloc_free_page (stack_page);
+      lock_release(&user_address_lock);
+      sys_exit (-1);
     }
     
+    /* Finally we check the supplemental page table */
     struct page_table_entry *spte = get_sup_page (upage);
-
     if(spte != NULL && load_segment (spte))
-    {
-      // if(upage == 0x804b000)
-      // {
-        // printf("SPTE\n");
-        // hex_dump(0, upage, PGSIZE, true);
-      // }
       return;
-    }
   }
   
+  /* All the other faults we just terminate the user program */
   sys_exit (-1);
   
   /* To implement virtual memory, delete the rest of the function
