@@ -54,7 +54,12 @@ sup_insert (struct file *file, off_t ofs, uint8_t *upage,
   pte->writable = writable;
   pte->type = type;
   
-  struct hash_elem *result = hash_insert (&thread_current ()->sup_page_table, &pte->elem);
+  struct hash_elem *result = hash_find (&thread_current ()->sup_page_table, 
+                                        &pte->elem);
+  if (result != NULL) 
+    PANIC ("Upage already inserted in hash table!!!");
+
+  hash_insert (&thread_current ()->sup_page_table, &pte->elem);
 
   if (result != NULL)
   {
