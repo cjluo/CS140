@@ -20,6 +20,8 @@ void kill_frame_table (void);
 
 void pin_upage (void *);
 void unpin_upage (void *);
+void pin_buffer (const char *);
+void unpin_buffer (const char *);
 
 /* this lock is just user pool lock */
 struct lock *frame_lock;

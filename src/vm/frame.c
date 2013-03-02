@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
@@ -129,10 +130,12 @@ kill_frame_table (void)
   free (frame_table);
 }
 
+/* Preload and pin one user page */
 void
 pin_upage (void *upage)
 {
   ASSERT (!is_kernel_vaddr (upage));
+  
   uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, true);
   
   *pte |= PTE_PIN;
@@ -140,9 +143,32 @@ pin_upage (void *upage)
     load_page(upage);
 }
 
+/* Unpin one user page */
 void
 unpin_upage (void *upage)
 {
   uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, false);
   *pte &= ~PTE_PIN;
+}
+
+/* Pin the entire user buffer */
+void
+pin_buffer (const char *buffer)
+{
+  void *buffer_end = (void *)buffer + strlen (buffer);
+  void *upage;
+  for (upage = pg_round_down(buffer); upage <= pg_round_down(buffer_end);
+       upage += PGSIZE)
+    pin_upage (upage);
+}
+
+/* Unpin the entire user buffer */
+void
+unpin_buffer (const char *buffer)
+{
+  void *buffer_end = (void *)buffer + strlen (buffer);
+  void *upage;
+  for (upage = pg_round_down(buffer); upage <= pg_round_down(buffer_end);
+       upage += PGSIZE)
+    unpin_upage (upage);
 }

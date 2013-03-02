@@ -191,11 +191,11 @@ sys_create (const char *file, unsigned initial_size)
 { 
   /* test address */
   check_valid_address (file);
-  pin_upage (pg_round_down (file));
+  pin_buffer (file);
   lock_acquire (&file_lock);
   bool return_value = filesys_create (file, initial_size);
   lock_release (&file_lock);
-  unpin_upage (pg_round_down (file));
+  unpin_buffer (file);
   return (int) return_value;
 }
 
@@ -205,8 +205,13 @@ sys_remove (const char *file)
 {
   /* test address */
   check_valid_address (file);
-  
-  return (int) filesys_remove (file);
+
+  pin_buffer (file);
+  lock_acquire (&file_lock);
+  int return_value = (int) filesys_remove (file);
+  lock_release (&file_lock);
+  unpin_buffer (file);
+  return return_value;
 }
 
 /* validate address;
@@ -219,11 +224,11 @@ sys_open (const char *file)
   /* test address */
   check_valid_address (file);
 
-  pin_upage (pg_round_down (file));
+  pin_buffer (file);
   lock_acquire (&file_lock);
   struct file *f = filesys_open (file);
   lock_release (&file_lock);
-  unpin_upage (pg_round_down (file));
+  unpin_buffer (file);
   
   if (!f)
     return -1;
@@ -232,11 +237,9 @@ sys_open (const char *file)
                                     sizeof (struct fd_frame));
   if(!fd_open_frame)
   {
-    pin_upage (pg_round_down (f));
     lock_acquire (&file_lock);
     file_close (f);
     lock_release (&file_lock);
-    unpin_upage (pg_round_down (f));
     return -1;
   }
   fd_open_frame->file = f;
