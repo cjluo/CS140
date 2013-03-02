@@ -98,7 +98,8 @@ get_next_frame (void)
           continue;
 
         // we decide to evict the frame, so we mark as not present
-        *pte &= ~PTE_P;
+        // *pte &= ~PTE_P;
+        pagedir_clear_page (f->t->pagedir, f->upage);
 
         if (pagedir_is_dirty (f->t->pagedir, f->upage))
         { 
@@ -118,7 +119,6 @@ get_next_frame (void)
           *pte |= index << 12;
         }
         
-        pagedir_clear_page (f->t->pagedir, f->upage);
         lock_release (frame_lock);
         return next_frame;
     }
