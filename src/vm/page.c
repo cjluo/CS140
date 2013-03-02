@@ -9,9 +9,9 @@
 
 /* less function */
 bool
-sup_less (const struct hash_elem *hash_ea,
-               const struct hash_elem *hash_eb,
-         void *aux UNUSED)
+sup_less (const struct hash_elem *hash_ea, 
+          const struct hash_elem *hash_eb,
+          void *aux UNUSED)
 {
   const struct page_table_entry *sup_pte_a;
   const struct page_table_entry *sup_pte_b;
@@ -42,7 +42,6 @@ sup_insert (struct file *file, off_t ofs, uint8_t *upage,
   
   struct page_table_entry *pte; 
   pte = malloc (sizeof *pte);
-
   pte->file = file;
   pte->ofs = ofs;
   pte->upage = upage;
@@ -50,7 +49,6 @@ sup_insert (struct file *file, off_t ofs, uint8_t *upage,
   pte->zero_bytes = zero_bytes;
   pte->writable = writable;
   pte->type = type;
-  
   
   struct hash_elem *result = hash_insert (&thread_current ()->sup_page_table, &pte->elem);
 

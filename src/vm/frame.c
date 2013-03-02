@@ -22,11 +22,9 @@ frame_table_init (void)
   
   /* init the frame table */
   frame_table = malloc(sizeof (struct frame_table_entry) * user_pool_page_cnt);
-  
+  /* set clock point to 0 */
   frame_clock_point = 0;
-  
   lock_init(&user_address_lock);
-  
   /* clear the frame table */
   uint32_t i;
   for (i = 0; i < user_pool_page_cnt; i++)
@@ -65,7 +63,7 @@ get_next_frame (void)
   lock_acquire (frame_lock);
   
   uint32_t i;
-  for (i = 0; i < user_pool_page_cnt*3; i++)
+  for (i = 0; i < user_pool_page_cnt * 3; i++)
   {
     /* frame_clock_point increment */
     frame_clock_point++;

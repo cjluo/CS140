@@ -4,7 +4,7 @@
 #include "threads/synch.h"
 #include <stdint.h>
 
-
+/* definition of frame table entry */
 struct frame_table_entry
 {
   struct thread *t;
