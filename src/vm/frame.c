@@ -78,37 +78,44 @@ get_next_frame (void)
     
     bool accessed = pagedir_is_accessed (f->t->pagedir, f->upage);
     
+
     /* if accessed, clear the access bit */
     if (accessed)
       pagedir_set_accessed (f->t->pagedir, f->upage, false);
     /* otherwize page out if satifies the following condition */
     else if (f->t != thread_current () || i >= 2 * user_pool_page_cnt)
     {
-      if (pagedir_is_dirty (f->t->pagedir, f->upage))
-      { 
+
         uint32_t *pte = lookup_page (f->t->pagedir, f->upage, false);
         ASSERT (pte != NULL && (*pte & PTE_P) != 0)
-        
+    
         if ((*pte & PTE_PIN) != 0)
           continue;
-        
-        /* Swap to disk: notice, at this time, f->could still use this page*/
-        uint32_t index = write_to_swap(next_frame);
-        /* Clear the kernal page mapping */
+
+        // we decide to evict the frame, so we mark as not present
         *pte &= ~PTE_P;
-        *pte &= PTE_FLAGS;
-        /* Use the AVL bits */
-        *pte |= PTE_SWAP;
-        /* Set it to be accessed to prevent from immediate pageout */
-        pagedir_set_accessed (f->t->pagedir, f->upage, true);
+
+        if (pagedir_is_dirty (f->t->pagedir, f->upage))
+        { 
           
-        /* Record index into page table */
-        *pte |= index << 12;
-      }
-      
-      pagedir_clear_page (f->t->pagedir, f->upage);
-      lock_release (frame_lock);
-      return next_frame;
+          /* Swap to disk: notice, at this time, f->could still use this page*/
+          uint32_t index = write_to_swap(next_frame);
+          /* Clear the kernal page mapping */
+
+          *pte &= PTE_FLAGS;
+          /* Use the AVL bits */
+          *pte |= PTE_SWAP;
+          /* Set it to be accessed to prevent from immediate pageout */
+          pagedir_set_accessed (f->t->pagedir, f->upage, true);
+          pagedir_set_dirty (f->t->pagedir, f->upage, false);
+
+          /* Record index into page table */
+          *pte |= index << 12;
+        }
+        
+        pagedir_clear_page (f->t->pagedir, f->upage);
+        lock_release (frame_lock);
+        return next_frame;
     }
   }
   
