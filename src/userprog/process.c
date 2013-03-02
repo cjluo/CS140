@@ -73,6 +73,10 @@ process_execute (const char *file_name)
 
   /* get thread_name */
   char *file_name_buffer = malloc (strlen (file_name) + 1);
+  
+  if (file_name_buffer == NULL)
+    sys_exit (-1);
+  
   strlcpy (file_name_buffer, file_name, strlen (file_name) + 1);
   char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
 
@@ -99,6 +103,10 @@ start_process (void *process_frame_struct)
   
   char *token, *save_ptr;
   char *file_name_buffer = malloc (strlen (file_name_) + 1);
+  
+  if (file_name_buffer == NULL)
+    sys_exit(-1);
+  
   strlcpy (file_name_buffer, file_name_, strlen (file_name_) + 1);
   char *file_name = strtok_r (file_name_, " ", &save_ptr);
   struct intr_frame if_;
@@ -154,6 +162,8 @@ start_process (void *process_frame_struct)
   }
   
   uint32_t *offset = malloc (argc * sizeof (uint32_t));
+  if (offset == NULL)
+    sys_exit (-1);
 
   char *if_esp = (char *) if_.esp;
   
@@ -276,6 +286,10 @@ process_exit (void)
   {
     lock_acquire (&cur->parent->child_lock);
     struct exit_status_frame *f = malloc (sizeof (struct exit_status_frame));
+    
+    if (f == NULL)
+      sys_exit (-1);
+    
     f->tid = cur->tid;
     f->status = cur->exit_status;
     list_push_back (&cur->parent->exit_child_list, &f->elem);

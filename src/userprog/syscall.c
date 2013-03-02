@@ -235,6 +235,9 @@ sys_open (const char *file)
 
   struct fd_frame *fd_open_frame = (struct fd_frame *) malloc (
                                     sizeof (struct fd_frame));
+  if (fd_open_frame == NULL)
+    sys_exit (-1);
+  
   if(!fd_open_frame)
   {
     lock_acquire (&file_lock);
@@ -458,6 +461,10 @@ sys_mmap (int fd, void *addr)
     return -1;
   
   struct mmap_frame *m = malloc (sizeof (struct mmap_frame));
+  
+  if (m == NULL)
+    sys_exit (-1);
+  
   m->mfile = mfile;
   m->mmap_id = mmap_id_gen ();
   m->page_cnt = ROUND_UP (read_bytes, PGSIZE) / PGSIZE;

@@ -23,6 +23,10 @@ frame_table_init (void)
   
   /* init the frame table */
   frame_table = malloc(sizeof (struct frame_table_entry) * user_pool_page_cnt);
+  
+  if (frame_table == NULL)
+    PANIC ("Frame table not allocated !!!");
+  
   /* set clock point to 0 */
   frame_clock_point = 0;
   lock_init(&user_address_lock);

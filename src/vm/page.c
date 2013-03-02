@@ -42,6 +42,10 @@ sup_insert (struct file *file, off_t ofs, uint8_t *upage,
   
   struct page_table_entry *pte; 
   pte = malloc (sizeof *pte);
+  
+  if (pte == NULL)
+    PANIC ("Supplimental page table not allocated !!!");
+  
   pte->file = file;
   pte->ofs = ofs;
   pte->upage = upage;
