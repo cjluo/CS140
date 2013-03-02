@@ -91,7 +91,7 @@ get_next_frame (void)
         uint32_t *pte = lookup_page (f->t->pagedir, f->upage, false);
         ASSERT (pte != NULL && (*pte & PTE_P) != 0)
         
-        if ((*pte & PTE_AVL2) != 0)
+        if ((*pte & PTE_PIN) != 0)
           continue;
         
         /* Swap to disk: notice, at this time, f->could still use this page*/
@@ -100,7 +100,7 @@ get_next_frame (void)
         *pte &= ~PTE_P;
         *pte &= PTE_FLAGS;
         /* Use the AVL bits */
-        *pte |= PTE_AVL1;
+        *pte |= PTE_SWAP;
         /* Set it to be accessed to prevent from immediate pageout */
         pagedir_set_accessed (f->t->pagedir, f->upage, true);
           
@@ -130,7 +130,7 @@ pin_upage (void *upage)
   ASSERT (!is_kernel_vaddr (upage));
   uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, true);
   
-  *pte |= PTE_AVL2;
+  *pte |= PTE_PIN;
   if ((*pte & PTE_P) == 0)
     load_page(upage);
 }
@@ -139,5 +139,5 @@ void
 unpin_upage (void *upage)
 {
   uint32_t *pte = lookup_page(thread_current ()->pagedir, upage, false);
-  *pte &= ~PTE_AVL2;
+  *pte &= ~PTE_PIN;
 }

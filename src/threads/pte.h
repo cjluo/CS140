@@ -60,10 +60,10 @@ static inline uintptr_t pd_no (const void *va) {
    "not present", which is just fine. */
 #define PTE_FLAGS 0x00000fff    /* Flag bits. */
 #define PTE_ADDR  0xfffff000    /* Address bits. */
-#define PTE_AVL   0x00000e00    /* Bits available for OS use. */
-#define PTE_AVL1   0x00000200    /* Bits available for OS use. */
-#define PTE_AVL2   0x00000400    /* Bits available for OS use. */
-#define PTE_AVL3   0x00000800    /* Bits available for OS use. */
+//#define PTE_AVL   0x00000e00    /* Bits available for OS use. */
+#define PTE_SWAP  0x00000200    /* Bits available for OS use. */
+#define PTE_PIN   0x00000400    /* Bits available for OS use. */
+#define PTE_AVL3  0x00000800    /* Bits available for OS use. */
 #define PTE_P 0x1               /* 1=present, 0=not present. */
 #define PTE_W 0x2               /* 1=read/write, 0=read-only. */
 #define PTE_U 0x4               /* 1=user/kernel, 0=kernel only. */

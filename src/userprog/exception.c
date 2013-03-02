@@ -211,7 +211,7 @@ load_page(void *upage)
   /* First Check Swap */
   uint32_t *pte = lookup_page (thread_current ()->pagedir, upage, false);
 
-  if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_AVL1) > 0)
+  if (pte != NULL && (*pte & PTE_P) == 0 && (*pte & PTE_SWAP) > 0)
   {
     /* Recorde the index in SWAP */
     uint32_t index = *pte >> 12;

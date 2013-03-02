@@ -46,7 +46,7 @@ pagedir_destroy (uint32_t *pd)
           if (*pte & PTE_P) 
             palloc_free_page (pte_get_page (*pte));
           /* Free the SWAP space */
-          else if((*pte & PTE_AVL1) > 0)
+          else if((*pte & PTE_SWAP) > 0)
           {
             uint32_t index = *pte >> 12;
             free_swap(index);
@@ -121,7 +121,7 @@ pagedir_set_page (uint32_t *pd, void *upage, void *kpage, bool writable)
     {
       ASSERT ((*pte & PTE_P) == 0);
       *pte = pte_create_user (kpage, writable);
-      *pte &= ~PTE_AVL;
+      *pte &= ~PTE_SWAP;
       frame_set_upage (kpage, upage);
       return true;
     }
