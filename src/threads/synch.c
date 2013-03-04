@@ -276,7 +276,7 @@ lock_release (struct lock *lock)
     ASSERT(!list_empty (&t->locks_list));
     list_remove (&lock->elem);
     /* rollback priority */
-    thread_priority_rollback (t, t->base_priority);
+    // thread_priority_rollback (t, t->base_priority);
   }
   else
     lock->holder = NULL;

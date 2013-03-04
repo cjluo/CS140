@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -110,6 +111,7 @@ struct thread
     struct semaphore thread_finish;
 
     int exit_status;
+    struct lock child_lock;
 #endif
 
     /* Owned by thread.c. */

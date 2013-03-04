@@ -184,8 +184,10 @@ sys_remove (const char *file)
 {
   /* test address */
   check_valid_address (file);
-  
-  return (int) filesys_remove (file);
+  lock_acquire (&file_lock);
+  int return_value = (int) filesys_remove (file);
+  lock_release (&file_lock);
+  return return_value;
 }
 
 /* validate address;
@@ -207,6 +209,8 @@ sys_open (const char *file)
   
   struct fd_frame *fd_open_frame = (struct fd_frame *) malloc (
                                     sizeof (struct fd_frame));
+  if (fd_open_frame == NULL)
+    sys_exit (-1);
   if(!fd_open_frame)
   {
     lock_acquire (&file_lock);
@@ -363,9 +367,6 @@ fd_to_fd_frame (int fd)
 static inline void
 check_valid_address (const void *address)
 {
-  if (!is_user_vaddr (address))
-    sys_exit (-1);
-  struct thread *t = thread_current ();
-  if (pagedir_get_page (t->pagedir, address) == NULL)
+  if (!is_user_vaddr (address) || address == NULL)
     sys_exit (-1);
 }

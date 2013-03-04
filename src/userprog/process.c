@@ -70,6 +70,10 @@ process_execute (const char *file_name)
 
   /* get thread_name */
   char *file_name_buffer = malloc (strlen (file_name) + 1);
+  
+  if (file_name_buffer == NULL)
+    sys_exit (-1);
+  
   strlcpy (file_name_buffer, file_name, strlen (file_name) + 1);
   char *thread_name = strtok_r (file_name_buffer, " ", &save_ptr);
 
@@ -96,6 +100,10 @@ start_process (void *process_frame_struct)
   
   char *token, *save_ptr;
   char *file_name_buffer = malloc (strlen (file_name_) + 1);
+  
+  if (file_name_buffer == NULL)
+    sys_exit(-1);
+  
   strlcpy (file_name_buffer, file_name_, strlen (file_name_) + 1);
   char *file_name = strtok_r (file_name_, " ", &save_ptr);
   struct intr_frame if_;
@@ -150,6 +158,8 @@ start_process (void *process_frame_struct)
   }
   
   uint32_t *offset = malloc (argc * sizeof (uint32_t));
+  if (offset == NULL)
+    sys_exit (-1);
 
   char *if_esp = (char *) if_.esp;
   
@@ -207,27 +217,30 @@ start_process (void *process_frame_struct)
 int
 process_wait (tid_t child_tid UNUSED) 
 { 
+  struct thread *cur = thread_current ();
   if(child_tid >= 0)
   {
-    struct thread *cur = thread_current ();
     struct list_elem *e;
 
     /* search the list of current children to find the children to wait,
        then wait for its finish semaphore
        and remove it from the list. */
-    enum intr_level old_level = intr_disable ();
+
+    lock_acquire (&cur->child_lock);
     for (e = list_begin (&cur->child_list);
          e != list_end (&cur->child_list);
          e = list_next(e))
     {
       struct thread *t = list_entry (e, struct thread, child_elem);
       
+      ASSERT(is_thread(t))
+      
       if (t->tid == child_tid)
       {
-        intr_set_level (old_level);
+        lock_release (&cur->child_lock);
         sema_down (&t->thread_finish);
-        old_level = intr_disable ();
-        list_remove (e);
+        lock_acquire (&cur->child_lock);
+        break;
       }
     }
 
@@ -244,12 +257,12 @@ process_wait (tid_t child_tid UNUSED)
         list_remove (e);
         int return_value = f->status;
         free (f);
-        intr_set_level (old_level);
+        lock_release (&cur->child_lock);
         return return_value;
       }
-    }    
-    intr_set_level (old_level);
+    }
   }
+  lock_release (&cur->child_lock);
   
   return -1;
 }
@@ -261,6 +274,47 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  lock_acquire (&cur->child_lock);
+  
+  /* If the parent thread didn't exit before this thread, 
+     push the return status to its parent's exit_child_list */
+  if (is_thread (cur->parent))
+  {
+    lock_acquire (&cur->parent->child_lock);
+    struct exit_status_frame *f = malloc (sizeof (struct exit_status_frame));
+    
+    if (f == NULL)
+      sys_exit (-1);
+    
+    f->tid = cur->tid;
+    f->status = cur->exit_status;
+    list_push_back (&cur->parent->exit_child_list, &f->elem);
+    list_remove (&cur->child_elem);
+
+    lock_release (&cur->parent->child_lock);
+  }
+  
+  struct list_elem *e;
+  
+  /* free exit_child_list */
+  while (!list_empty (&cur->exit_child_list))
+  {
+    e = list_pop_front (&cur->exit_child_list);
+    struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
+    free (f);
+  }
+  lock_release (&cur->child_lock);
+
+  /* free file_list */
+  while (!list_empty (&cur->file_list))
+  {
+    e = list_pop_front (&cur->file_list);
+    struct fd_frame *f = list_entry (e, struct fd_frame, elem);
+    
+    file_close (f->file);
+    free (f);
+  }
+  
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -278,45 +332,8 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   
-  enum intr_level old_level = intr_disable ();
-
-  /* If the parent thread didn't exit before this thread, 
-     push the return status to its parent's exit_child_list */
-  if (is_thread (cur->parent))
-  {
-    struct exit_status_frame *f = malloc (sizeof (struct exit_status_frame));
-    f->tid = cur->tid;
-    f->status = cur->exit_status;
-    list_push_back (&cur->parent->exit_child_list, &f->elem);
-    list_remove (&cur->child_elem);
-  }
-
-  /* free exit_child_list */
-  struct list_elem *e;
-  while (!list_empty (&cur->exit_child_list))
-  {
-    e = list_pop_front (&cur->exit_child_list);
-    struct exit_status_frame *f = list_entry (e, struct exit_status_frame, elem);
-    free (f);
-  }
-
-  /* free file_list */
-  while (!list_empty (&cur->file_list))
-  {
-    e = list_pop_front (&cur->file_list);
-    struct fd_frame *f = list_entry (e, struct fd_frame, elem);
-    
-    file_close (f->file);
-    free (f);
-  }
-    
-
-  intr_set_level (old_level);
-  
   /* inform its parent that it finishes. */
   sema_up (&cur->thread_finish);
-  
-
 }
 
 /* Sets up the CPU for running user code in the current
@@ -676,4 +693,7 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
+
+
 
