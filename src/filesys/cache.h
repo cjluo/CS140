@@ -20,7 +20,7 @@ struct cache_block
   uint32_t readers;
   uint32_t writers;
   
-  char data[BLOCK_SECTOR_SIZE];
+  void *data;
   
   struct hash_elem elem;
 };

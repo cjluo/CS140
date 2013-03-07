@@ -10,6 +10,7 @@
 #define CACHESIZE 64
 
 static struct cache_block buffer_cache[CACHESIZE];
+static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];
 static struct hash cache_table;
 
 unsigned cache_hash (const struct hash_elem *c_, void *aux UNUSED);
@@ -54,6 +55,8 @@ cache_init (void)
     buffer_cache[i].readers = 0;
     buffer_cache[i].writers = 0;
     buffer_cache[i].time = timer_ticks ();
+    
+    buffer_cache[i].data = &blocks[i * BLOCK_SECTOR_SIZE];
   }
 }
 
@@ -89,6 +92,7 @@ cache_write_block (block_sector_t sector, const void *buffer)
 struct cache_block *
 cache_lookup_block (block_sector_t sector)
 {
+  printf ("sector %u\n", sector);
   struct cache_block block;
   block.sector = sector;
   struct hash_elem *e = hash_find (&cache_table, &block.elem);
