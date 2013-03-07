@@ -172,9 +172,9 @@ sys_create (const char *file, unsigned initial_size)
 { 
   /* test address */
   check_valid_address (file);
-  lock_acquire (&file_lock);
+  // lock_acquire (&file_lock);
   bool return_value = filesys_create (file, initial_size);
-  lock_release (&file_lock);
+  // lock_release (&file_lock);
   return (int) return_value;
 }
 
@@ -184,9 +184,9 @@ sys_remove (const char *file)
 {
   /* test address */
   check_valid_address (file);
-  lock_acquire (&file_lock);
+  // lock_acquire (&file_lock);
   int return_value = (int) filesys_remove (file);
-  lock_release (&file_lock);
+  // lock_release (&file_lock);
   return return_value;
 }
 
@@ -200,9 +200,9 @@ sys_open (const char *file)
   /* test address */
   check_valid_address (file);
 
-  lock_acquire (&file_lock);
+  // lock_acquire (&file_lock);
   struct file *f = filesys_open (file);
-  lock_release (&file_lock);
+  // lock_release (&file_lock);
   if (!f)
     return -1;
 
@@ -213,9 +213,9 @@ sys_open (const char *file)
     sys_exit (-1);
   if(!fd_open_frame)
   {
-    lock_acquire (&file_lock);
+    // lock_acquire (&file_lock);
     file_close (f);
-    lock_release (&file_lock);
+    // lock_release (&file_lock);
     return -1;
   }
   fd_open_frame->file = f;
@@ -260,9 +260,9 @@ sys_read (int fd, void *buffer, unsigned size)
   struct fd_frame *f = fd_to_fd_frame (fd);
   if (f)
   {
-    lock_acquire (&file_lock);
+    // lock_acquire (&file_lock);
     off_t return_value = file_read (f->file, buffer, size);
-    lock_release (&file_lock);
+    // lock_release (&file_lock);
     return (int) return_value;
   }
   
@@ -294,9 +294,9 @@ sys_write (int fd, const void *buffer, unsigned size)
     struct fd_frame *f = fd_to_fd_frame (fd);
     if(f)
     {
-      lock_acquire (&file_lock);    
+      // lock_acquire (&file_lock);    
       int return_value = file_write (f->file, buffer, size);
-      lock_release (&file_lock);
+      // lock_release (&file_lock);
       return (int) return_value;
     }
   }
@@ -331,9 +331,9 @@ sys_close (int fd)
   struct fd_frame *f = fd_to_fd_frame (fd);
   if (f)
   {
-    lock_acquire (&file_lock);
+    // lock_acquire (&file_lock);
     file_close (f->file);
-    lock_release (&file_lock);
+    // lock_release (&file_lock);
     list_remove (&f->elem);
     free (f);
   }

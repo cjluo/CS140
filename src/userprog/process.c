@@ -119,9 +119,9 @@ start_process (void *process_frame_struct)
   if_.eflags = FLAG_IF | FLAG_MBS;
   
   /* lock filesys before finish loading */
-  lock_acquire (&file_lock);
+  // lock_acquire (&file_lock);
   success = load (file_name, &if_.eip, &if_.esp);
-  lock_release (&file_lock);
+  // lock_release (&file_lock);
   
   struct thread *child = thread_current ();
 
