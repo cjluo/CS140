@@ -11,35 +11,11 @@
 
 static struct cache_block buffer_cache[CACHESIZE];
 static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];
-static struct hash cache_table;
-
-unsigned cache_hash (const struct hash_elem *c_, void *aux UNUSED);
-bool cache_less (const struct hash_elem *a_, const struct hash_elem *b_,
-void *aux UNUSED);
-
-/* Returns a hash value for cache c. */
-unsigned
-cache_hash (const struct hash_elem *c_, void *aux UNUSED)
-{
-  const struct cache_block *c = hash_entry (c_, struct cache_block, elem);
-  return hash_bytes (&c->sector, sizeof c->sector);
-}
-
-/* Returns true if cache a precedes cache b. */
-bool
-cache_less (const struct hash_elem *a_, const struct hash_elem *b_,
-void *aux UNUSED)
-{
-  const struct cache_block *a = hash_entry (a_, struct cache_block, elem);
-  const struct cache_block *b = hash_entry (b_, struct cache_block, elem);
-  return a->sector < b->sector;
-}
 
 void
 cache_init (void)
 {
-  hash_init (&cache_table, cache_hash, cache_less, NULL);
-  
+
   int i;
   for (i = 0; i < CACHESIZE; i++)
   {
@@ -65,12 +41,9 @@ cache_read_block (block_sector_t sector, void *buffer)
 {
   struct cache_block *block = cache_lookup_block(sector);
   if (block == NULL)
-  {
-    cache_get_block (sector);
-    cache_read_block (sector, buffer);
-  }
-  else
-    memcpy(buffer, block->data, BLOCK_SECTOR_SIZE);
+    block = cache_get_block (sector);
+
+  memcpy(buffer, block->data, BLOCK_SECTOR_SIZE);
 }
 
 void
@@ -78,31 +51,23 @@ cache_write_block (block_sector_t sector, const void *buffer)
 {
   struct cache_block *block = cache_lookup_block(sector);
   if (block == NULL)
-  {
-    cache_get_block (sector);
-    cache_write_block (sector, buffer);
-  }
-  else
-  {
-    memcpy(block->data, buffer, BLOCK_SECTOR_SIZE);
-    block->dirty = true;
-  }
+    block = cache_get_block (sector);
+
+  memcpy(block->data, buffer, BLOCK_SECTOR_SIZE);
+  block->dirty = true;
 }
 
 struct cache_block *
 cache_lookup_block (block_sector_t sector)
 {
-  printf ("sector %u\n", sector);
-  struct cache_block block;
-  block.sector = sector;
-  struct hash_elem *e = hash_find (&cache_table, &block.elem);
-  return e != NULL ? hash_entry (e, struct cache_block, elem) : NULL;
-}
+  int i;
+  for (i = 0; i < CACHESIZE; i++)
+  {
+    if (buffer_cache[i].valid && buffer_cache[i].sector == sector)
+      return &buffer_cache[i];
+  }
 
-void
-cache_update_block (struct cache_block *block)
-{
-  hash_replace (&cache_table, &block->elem);
+  return NULL;
 }
 
 struct cache_block *
@@ -157,26 +122,28 @@ next_available_block (void)
   PANIC ("All are doing IO");
 }
 
-void cache_get_block (block_sector_t sector)
+struct cache_block *
+cache_get_block (block_sector_t sector)
 {
   struct cache_block *block = next_available_block();
   block->io = true;
   if (block->dirty)
     cache_put_block (block);
-  block_read (fs_device, sector, &block->data);
+  block_read (fs_device, sector, block->data);
   
   block->sector = sector;
   block->dirty = false;
   block->time =  timer_ticks ();
   block->readers = 0;
   block->writers = 0;
+  block->valid = true;
   
-  cache_update_block (block);
   block->io = false;
+  return block;
 }
 
 void cache_put_block (struct cache_block *block)
 {
-  block_write (fs_device, block->sector, &block->data);
+  block_write (fs_device, block->sector, block->data);
   block->dirty = false;
 }

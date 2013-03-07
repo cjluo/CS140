@@ -28,10 +28,8 @@ struct cache_block
 void cache_init (void);
 
 struct cache_block *cache_lookup_block (block_sector_t);
-void cache_update_block (struct cache_block *);
-void cache_delete_block (struct cache_block *);
 struct cache_block *next_available_block (void);
-void cache_get_block (block_sector_t);
+struct cache_block *cache_get_block (block_sector_t);
 void cache_put_block (struct cache_block *);
 void cache_read_block (block_sector_t, void *);
 void cache_write_block (block_sector_t, const void *);
