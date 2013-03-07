@@ -22,7 +22,7 @@ cache_init (void)
     buffer_cache[i].sector = 0;
     
     lock_init (&buffer_cache[i].cache_lock);
-    cond_init (&buffer_cache[i].cond_available);
+    cond_init (&buffer_cache[i].cache_available);
 
     buffer_cache[i].dirty = false;
     buffer_cache[i].valid = false;
@@ -44,7 +44,32 @@ int chunk_size, int sector_ofs)
   if (block == NULL)
     block = cache_get_block (sector);
 
+  // 去问一下
+  /* When the old block is in IO phase */
+  while (block->io)
+  {
+    lock_acquire (&block->cache_lock);
+    cond_wait(&block->cache_available, &block->cache_lock);
+    lock_release (&block->cache_lock);
+    block = cache_get_block (sector);
+  }
+  
+  lock_acquire (&block->cache_lock);
+  block->readers++;
+  lock_release (&block->cache_lock);
+  
   memcpy(buffer, block->data + sector_ofs, chunk_size);
+  
+  lock_acquire (&block->cache_lock);
+  block->readers--;
+  lock_release (&block->cache_lock);
+  
+  if (block->readers == 0 && block->writers == 0)
+  {
+    lock_acquire (&block->cache_lock);
+    cond_broadcast (&block->cache_available, &block->cache_lock);
+    lock_release (&block->cache_lock);
+  }
 }
 
 void
@@ -55,8 +80,32 @@ int chunk_size, int sector_ofs)
   if (block == NULL)
     block = cache_get_block (sector);
 
+  /* When the old block is in IO phase */
+  while (block->io)
+  {
+    lock_acquire (&block->cache_lock);
+    cond_wait(&block->cache_available, &block->cache_lock);
+    lock_release (&block->cache_lock);
+    block = cache_get_block (sector);
+  }
+  
+  lock_acquire (&block->cache_lock);
+  block->writers++;
+  lock_release (&block->cache_lock);
+  
   memcpy(block->data + sector_ofs, buffer, chunk_size);
   block->dirty = true;
+  
+  lock_acquire (&block->cache_lock);
+  block->writers--;
+  lock_release (&block->cache_lock);
+
+  if (block->readers == 0 && block->writers == 0)
+  {
+    lock_acquire (&block->cache_lock);
+    cond_broadcast (&block->cache_available, &block->cache_lock);
+    lock_release (&block->cache_lock);
+  }
 }
 
 struct cache_block *
@@ -128,10 +177,20 @@ struct cache_block *
 cache_get_block (block_sector_t sector)
 {
   struct cache_block *block = next_available_block();
+  lock_acquire (&block->cache_lock);
+  
+  while (block->writers != 0 || block->readers != 0)
+    cond_wait (&block->cache_available, &block->cache_lock);
+  
   block->io = true;
   if (block->dirty)
-    cache_put_block (block);
+  {
+    block_write (fs_device, block->sector, block->data);
+    block->dirty = false;
+  }
   block_read (fs_device, sector, block->data);
+  cond_broadcast (&block->cache_available, &block->cache_lock);
+  
   
   block->sector = sector;
   block->dirty = false;
@@ -141,6 +200,7 @@ cache_get_block (block_sector_t sector)
   block->valid = true;
   
   block->io = false;
+  lock_release (&block->cache_lock);
   return block;
 }
 

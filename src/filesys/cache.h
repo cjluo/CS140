@@ -10,7 +10,7 @@ struct cache_block
   block_sector_t sector;
   
   struct lock cache_lock;
-  struct condition cond_available;
+  struct condition cache_available;
   
   bool dirty;
   bool valid;
