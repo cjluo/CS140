@@ -37,23 +37,25 @@ cache_init (void)
 }
 
 void
-cache_read_block (block_sector_t sector, void *buffer)
+cache_read_block (block_sector_t sector, void *buffer,
+int chunk_size, int sector_ofs)
 {
   struct cache_block *block = cache_lookup_block(sector);
   if (block == NULL)
     block = cache_get_block (sector);
 
-  memcpy(buffer, block->data, BLOCK_SECTOR_SIZE);
+  memcpy(buffer, block->data + sector_ofs, chunk_size);
 }
 
 void
-cache_write_block (block_sector_t sector, const void *buffer)
+cache_write_block (block_sector_t sector, const void *buffer,
+int chunk_size, int sector_ofs)
 {
   struct cache_block *block = cache_lookup_block(sector);
   if (block == NULL)
     block = cache_get_block (sector);
 
-  memcpy(block->data, buffer, BLOCK_SECTOR_SIZE);
+  memcpy(block->data + sector_ofs, buffer, chunk_size);
   block->dirty = true;
 }
 
