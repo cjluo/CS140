@@ -37,14 +37,8 @@ filesys_init (bool format)
 void
 filesys_done (void) 
 {
-
   /* write back dirty to disk */
-  int i = 0;
-  for (i = 0; i < CACHESIZE; i++)
-  {
-    cache_put_block (&buffer_cache[i]);
-  }
-
+  cache_put_block_all ();
   free_map_close ();
 }
 
