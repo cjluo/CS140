@@ -140,6 +140,19 @@ inode_create (block_sector_t sector, off_t length)
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
 
+    uint32_t i;
+    for (i = 0; i < sectors && i < DIRECT_SIZE; i++)
+    {
+      if(free_map_allocate (1, &disk_inode->sector_direct[i]))
+         cache_write_block (disk_inode->sector_direct[i], zeros, 
+                            BLOCK_SECTOR_SIZE, 0);
+      else
+      {
+        free (disk_inode);
+        return false;
+      }
+    }
+
     cache_write_block (sector, disk_inode, BLOCK_SECTOR_SIZE, 0);
     free (disk_inode);
   }
@@ -338,16 +351,12 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < sector_left ? size : sector_left;
-      printf ("## inode_write_at0 %d\n", chunk_size);
 
       if (chunk_size == 0)
         break;
 
-      printf ("## inode_write_at 2 \n");
       cache_write_block (sector_idx, buffer + bytes_written,
                          chunk_size, sector_ofs);
-      printf ("## inode_write_at 3 \n");
-
       /* Advance. */
       size -= chunk_size;
       offset += chunk_size;
@@ -362,8 +371,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       inode->data.length = offset;
       cache_write_block (inode->sector, &inode->data, BLOCK_SECTOR_SIZE, 0);
     }
-  printf ("## inode_write_at 2 %d\n ", (int)bytes_written);
-  return bytes_written;
+  return bytes_written;  
 }
 
 static int 

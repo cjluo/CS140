@@ -7,7 +7,6 @@
 #include "threads/synch.h"
 #include "filesys/cache.h"
 #include "filesys/filesys.h"
-#include "stdio.h"
 
 static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];
 
