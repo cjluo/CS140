@@ -130,6 +130,7 @@ start_process (void *process_frame_struct)
   {
     /* add the thread to its parent's child_list */
     enum intr_level old_level = intr_disable ();
+    child->current_dir = p_frame->parent->current_dir;
     list_push_back (&(p_frame->parent->child_list),
                   &(child->child_elem));
     child->parent = p_frame->parent;

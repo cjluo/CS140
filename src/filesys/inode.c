@@ -11,7 +11,7 @@
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
-#define DIRECT_SIZE 124
+#define DIRECT_SIZE 123
 #define INDIRECT_SIZE 128
 #define SECTOR_INDEX_SIZE 4
 
@@ -22,6 +22,7 @@ struct inode_disk
   {
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
+    enum inode_type type;
     block_sector_t sector_indirect;
     block_sector_t sector_double_indirect;
     block_sector_t sector_direct[DIRECT_SIZE];   /* First data sector. */
@@ -128,7 +129,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, enum inode_type type)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = true;
@@ -146,6 +147,7 @@ inode_create (block_sector_t sector, off_t length)
     int sectors = bytes_to_sectors (length);
     disk_inode->length = length;
     disk_inode->magic = INODE_MAGIC;
+    disk_inode->type = type;
 
     int i;
     for (i = 0; i <= sectors && i < DIRECT_SIZE; i++)
@@ -475,5 +477,9 @@ inode_length (const struct inode *inode)
   return inode->data.length;
 }
 
-
+bool
+inode_is_file (const struct inode *inode)
+{
+  return (inode->data.type == FILE);
+}
 
