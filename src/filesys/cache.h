@@ -5,6 +5,9 @@
 #include "devices/rtc.h"
 #include "threads/synch.h"
 
+#define CACHESIZE 64
+
+
 struct cache_block
 {
   block_sector_t sector;
@@ -24,6 +27,9 @@ struct cache_block
   
   struct hash_elem elem;
 };
+
+static struct cache_block buffer_cache[CACHESIZE];
+
 
 void cache_init (void);
 

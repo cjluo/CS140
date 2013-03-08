@@ -7,9 +7,8 @@
 #include "threads/synch.h"
 #include "filesys/cache.h"
 #include "filesys/filesys.h"
-#define CACHESIZE 64
+#include "stdio.h"
 
-static struct cache_block buffer_cache[CACHESIZE];
 static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];
 
 void
@@ -206,6 +205,19 @@ cache_get_block (block_sector_t sector)
 
 void cache_put_block (struct cache_block *block)
 {
+
+
+  // lock_acquire (&block->cache_lock);
+  // while (block->writers != 0 || block->readers != 0)
+  //   cond_wait (&block->cache_available, &block->cache_lock);
+  
+
+  if (!block->dirty)
+    return;
   block_write (fs_device, block->sector, block->data);
-  block->dirty = false;
+  block->dirty = false;  
+
+  // lock_release (&block->cache_lock);
+
+
 }
