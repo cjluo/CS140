@@ -15,6 +15,7 @@
 #define INDIRECT_SIZE 128
 #define SECTOR_INDEX_SIZE 4
 
+
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
@@ -303,11 +304,17 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   while (size > 0) 
     {
       /* Disk sector to read, starting byte offset within sector. */
-      // printf ("## byte_to_sector %d \n", offset);
+      // printf ("## byte_to_sector1 %d \n", offset);
       int sector_idx = byte_to_sector (inode, offset);
+      // printf ("## byte_to_sector2 %d\n", sector_idx);
+
       if (sector_idx == -1)
       {
-        return 0;
+        /*read unallocated sectors should fill with zeros*/
+        if (offset <= inode_length (inode))
+          sector_idx = inode_extend (inode, offset);
+        else 
+          return 0;
       }
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
@@ -353,9 +360,12 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       /* Sector to write, starting byte offset within sector. */
       int sector_idx = byte_to_sector (inode, offset);
+      // printf ("## byte_to_sector3 %d\n", sector_idx);
+
       if (sector_idx == -1)
       {
         int return_value = inode_extend (inode, offset);
+      // printf ("## byte_to_sector4 %d\n", return_value);
 
         if (return_value <=0)
           break;
