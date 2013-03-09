@@ -35,6 +35,8 @@ dir_create (block_sector_t sector, size_t entry_cnt)
 struct dir *
 dir_open (struct inode *inode) 
 {
+  // printf ("inode %x\n", inode);
+  
   struct dir *dir = calloc (1, sizeof *dir);
   if (inode != NULL && dir != NULL)
     {
@@ -205,6 +207,9 @@ dir_remove (struct dir *dir, const char *name)
 
   /* Open inode. */
   inode = inode_open (e.inode_sector);
+  
+  ASSERT (inode != NULL);
+  
   if (inode == NULL)
     goto done;
 
@@ -250,12 +255,25 @@ dir_empty (struct dir *dir)
   int pos = 0;
   while (inode_read_at (dir->inode, &e, sizeof e, pos) == sizeof e) 
     {
-      // printf("%s e.in_use %s\n", e.name, e.in_use ? "YES":"NO");
       pos += sizeof e;
       if (e.in_use && strcmp(e.name, ".") && strcmp(e.name, ".."))
           return false;
     }
   return true;
+}
+
+void
+dir_ls (struct dir *dir)
+{
+  struct dir_entry e;
+
+  int pos = 0;
+  while (inode_read_at (dir->inode, &e, sizeof e, pos) == sizeof e) 
+    {
+      pos += sizeof e;
+      if (e.in_use)
+          printf("%s\n", e.name);
+    }
 }
 
 struct dir *

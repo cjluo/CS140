@@ -186,8 +186,8 @@ inode_open (block_sector_t sector)
       inode = list_entry (e, struct inode, elem);
       if (inode->sector == sector) 
         {
-          inode_reopen (inode);
-          return inode; 
+          // printf ("reopen1 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
+          return inode_reopen (inode);
         }
     }
 
@@ -210,8 +210,14 @@ inode_open (block_sector_t sector)
 struct inode *
 inode_reopen (struct inode *inode)
 {
-  if (inode != NULL)
-    inode->open_cnt++;
+  // printf ("reopen2 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
+  if (inode == NULL || inode->removed)
+  {
+    // printf ("return NULL\n");
+    return NULL;
+  }
+
+  inode->open_cnt++;
   return inode;
 }
 
@@ -270,8 +276,9 @@ inode_close (struct inode *inode)
 void
 inode_remove (struct inode *inode) 
 {
-  ASSERT (inode != NULL);
+  // printf ("remove1 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
   inode->removed = true;
+  // printf ("remove2 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
 }
 
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.
@@ -375,8 +382,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       size -= chunk_size;
       offset += chunk_size;
       bytes_written += chunk_size;
-
-
     }
     
     off_t inode_left = inode_length (inode) - offset;

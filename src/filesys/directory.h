@@ -30,5 +30,6 @@ bool dir_readdir (struct dir *, char name[NAME_MAX + 1]);
 struct dir *dir_parse (const char *, char **);
 bool dir_create_dot (const char *name);
 bool dir_empty (struct dir *);
+void dir_ls (struct dir *);
 
 #endif /* filesys/directory.h */

@@ -124,13 +124,13 @@ filesys_remove (const char *name)
       dir_close (dir);
       return false;
     }
-    dir_remove (dir, ".");
-    dir_remove (dir, "..");
   }
   
   bool success = dir != NULL && dir_remove (dir, file_name);
+
   dir_close (dir); 
   free (file_name);
+  
   return success;
 }
 
