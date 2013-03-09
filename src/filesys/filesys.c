@@ -120,5 +120,6 @@ do_format (void)
   if (!dir_create (ROOT_DIR_SECTOR, 16))
     PANIC ("root directory creation failed");
   free_map_close ();
+  dir_create_dot ("//");
   printf ("done.\n");
 }

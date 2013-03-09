@@ -427,26 +427,53 @@ sys_chdir (const char *dir)
   free (dir_name);
   return (int) true;
 }
+
 static int
 sys_mkdir (const char *dir)
 {
   check_valid_address (dir);
-  return (int)filesys_create (dir, 0, DIR);
+  if(filesys_create (dir, 0, DIR))
+  {
+    return dir_create_dot (dir);
+  }
+  return (int) false;
 }
+
 static int
 sys_readdir (int fd, char *name)
 {
-  return -1;
+  if (fd < 2)
+    return (int) false;
+  
+  struct fd_frame *f = fd_to_fd_frame (fd);
+  if (f)
+  {
+    return (int) (dir_readdir (dir_open (file_get_inode(f->file)), name));
+  }
+  return (int) false;
 }
+
 static int
 sys_isdir (int fd)
 {
-  return -1;
+  if (fd < 2)
+    return (int) false;
+  
+  struct fd_frame *f = fd_to_fd_frame (fd);
+  if (f)
+    return (int) (inode_type(file_get_inode(f->file)) == DIR);
+  return (int) false;
 }
 
 static int
 sys_inumber (int fd)
 {
+  if (fd < 2)
+    return -1;
+  
+  struct fd_frame *f = fd_to_fd_frame (fd);
+  if (f)
+    return inode_sector(file_get_inode(f->file));
   return -1;
 }
 

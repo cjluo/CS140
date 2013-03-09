@@ -253,17 +253,16 @@ dir_parse (const char *name, char **file_name)
   
   char *token, *save_ptr;
   struct inode *inode = NULL;
-
+  
   /* get thread_name */
   char *name_buffer = malloc (strlen (name) + 1);
   if (name_buffer == NULL)
     return NULL;
   strlcpy (name_buffer, name, strlen (name) + 1);
+  
   for (token = strtok_r (name_buffer, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
   {
-    if (strlen (token) ==  0)
-      continue;
     /* last character */
     if (*save_ptr == '\0')
     {
@@ -272,6 +271,8 @@ dir_parse (const char *name, char **file_name)
       free (name_buffer);
       return dir;
     }
+    if (strlen (token) ==  0)
+      continue;
 
     bool found = dir_lookup (dir, token, &inode);
     dir_close (dir);
@@ -285,5 +286,40 @@ dir_parse (const char *name, char **file_name)
   }
   
   free (name_buffer);
-  return NULL;
+  *file_name = malloc (1);
+  **file_name = '\0';
+  return dir;
+}
+
+bool
+dir_create_dot (const char *name)
+{
+  char *file_name = NULL;
+  struct dir *parent = dir_parse(name, &file_name);
+  ASSERT (parent != NULL || file_name!= NULL);
+
+  struct dir *dir;
+  if (strlen(file_name) != 0)
+  {
+    struct inode *inode = NULL;
+
+    dir_lookup (parent, file_name, &inode);
+    dir_close (parent);
+  
+    ASSERT (inode != NULL);
+    dir = dir_open (inode);
+  }
+  else
+    dir = parent;
+  
+  bool success = true;
+  
+  /* add .. */
+  success &= dir_add (dir, "..", inode_sector(parent->inode));
+  /* add . */
+  success &= dir_add (dir, ".", inode_sector(dir->inode));
+  
+  dir_close (dir);
+  free (file_name);
+  return success;
 }
