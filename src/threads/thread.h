@@ -170,5 +170,10 @@ bool priority_compare (const struct list_elem *,
                               const struct list_elem *,
                               void *);
 
-bool is_thread (struct thread *) UNUSED;							  
+bool is_thread (struct thread *) UNUSED;
+
+#ifdef FILESYS
+struct dir *dir_current (void);
+#endif
+
 #endif /* threads/thread.h */

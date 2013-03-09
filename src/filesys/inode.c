@@ -477,9 +477,9 @@ inode_length (const struct inode *inode)
   return inode->data.length;
 }
 
-bool
-inode_is_file (const struct inode *inode)
+enum inode_type
+inode_type (const struct inode *inode)
 {
-  return (inode->data.type == FILE);
+  return inode->data.type;
 }
 

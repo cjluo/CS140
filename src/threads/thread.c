@@ -16,6 +16,11 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
+#ifdef FILESYS
+#include "filesys/directory.h"
+#include "filesys/inode.h"
+#include "filesys/filesys.h"
+#endif
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -83,8 +88,6 @@ static int priority_update (struct thread *, void *aux UNUSED);
 
 static void recent_cpu_update (struct thread *t, void *aux UNUSED);
 static void all_threads_update (void);
-
-
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -344,6 +347,14 @@ thread_current (void)
   return t;
 }
 
+#ifdef FILESYS
+struct dir *
+dir_current (void)
+{
+  return dir_open (inode_open (thread_current ()->current_dir));
+}
+#endif
+
 /* Returns the running thread's tid. */
 tid_t
 thread_tid (void) 
@@ -593,6 +604,10 @@ init_thread (struct thread *t, const char *name, int priority)
   sema_init (&t->thread_finish, 0);
   lock_init (&t->child_lock);
 #endif
+#ifdef FILESYS
+  t->current_dir = ROOT_DIR_SECTOR;
+#endif
+
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

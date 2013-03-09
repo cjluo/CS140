@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "threads/thread.h"
+#include "threads/malloc.h"
 #include "filesys/file.h"
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
@@ -31,7 +32,6 @@ filesys_init (bool format)
     do_format ();
 
   free_map_open ();
-  thread_current ()->current_dir = ROOT_DIR_SECTOR;
 }
 
 /* Shuts down the file system module, writing any unwritten data
@@ -52,16 +52,18 @@ bool
 filesys_create (const char *name, off_t initial_size) 
 {
   block_sector_t inode_sector = 0;
-  struct dir *dir = dir_open (inode_open (thread_current ()->current_dir));
+  char *file_name;
+  struct dir *dir = dir_parse(name, &file_name);
   ASSERT (dir != NULL);
   bool success = (dir != NULL
                   && free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size, FILE)
-                  && dir_add (dir, name, inode_sector));
+                  && dir_add (dir, file_name, inode_sector));
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   dir_close (dir);
 
+  free (file_name);
   return success;
 }
 
@@ -73,13 +75,15 @@ filesys_create (const char *name, off_t initial_size)
 struct file *
 filesys_open (const char *name)
 {
-  struct dir *dir = dir_open_root ();
+  char *file_name;
+  struct dir *dir = dir_parse(name, &file_name);
   struct inode *inode = NULL;
 
   if (dir != NULL)
-    dir_lookup (dir, name, &inode);
+    dir_lookup (dir, file_name, &inode);
   dir_close (dir);
 
+  free (file_name);
   return file_open (inode);
 }
 
@@ -90,10 +94,12 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name) 
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
+  char *file_name;
+  struct dir *dir = dir_parse(name, &file_name);
+  bool success = dir != NULL && dir_remove (dir, file_name);
   dir_close (dir); 
 
+  free (file_name);
   return success;
 }
 

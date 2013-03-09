@@ -5,6 +5,8 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/thread.h"
+#include "userprog/syscall.h"
 
 /* A directory. */
 struct dir 
@@ -233,4 +235,59 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         } 
     }
   return false;
+}
+
+struct dir *
+dir_parse (const char *name, char **file_name)
+{
+  if (strlen (name) ==  0)
+    sys_exit (-1);
+  
+  struct dir *dir;
+  if (*name == '/')
+  {
+    dir = dir_open_root ();
+    name++;
+  }
+  else
+    dir = dir_current ();
+  
+  char *token, *save_ptr;
+  struct inode *inode = NULL;
+
+  /* get thread_name */
+  char *name_buffer = malloc (strlen (name) + 1);
+  if (name_buffer == NULL)
+    sys_exit (-1);
+  strlcpy (name_buffer, name, strlen (name) + 1);
+  for (token = strtok_r (name_buffer, "/", &save_ptr); token != NULL;
+       token = strtok_r (NULL, "/", &save_ptr))
+  {
+    if (strlen (token) ==  0)
+      continue;
+    /* last character */
+    if (*save_ptr == '\0')
+    {
+      // printf("%s\n", token);
+      *file_name = malloc (strlen (token) + 1);
+      strlcpy(*file_name, token, strlen(token) + 1);
+      free (name_buffer);
+      return dir;
+    }
+
+    bool found = dir_lookup (dir, token, &inode);
+    dir_close (dir);
+    if (!found || inode_type (inode) != DIR)
+    {
+      free (name_buffer);
+      sys_exit (-1);
+    }
+    
+    dir = dir_open (inode);
+  }
+  
+  free (name_buffer);
+  sys_exit (-1);
+  
+  return NULL;
 }

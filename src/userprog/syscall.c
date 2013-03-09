@@ -33,6 +33,12 @@ static int sys_close (int);
 static int fd_gen (void);
 static struct fd_frame * fd_to_fd_frame (int);
 
+static int sys_chdir (const char *);
+static int sys_mkdir (const char *);
+static int sys_readdir (int, char *);
+static int sys_isdir (int);
+static int sys_inumber (int);
+
 void
 syscall_init (void) 
 {
@@ -118,6 +124,27 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_CLOSE:
       check_valid_address (esp+1);
       return_value = sys_close ((int)*(esp+1));
+      break;
+    case SYS_CHDIR:
+      check_valid_address (esp+1);
+      return_value = sys_chdir ((const char *)*(esp+1));
+      break;
+    case SYS_MKDIR:
+      check_valid_address (esp+1);
+      return_value = sys_mkdir ((const char *)*(esp+1));
+      break;
+    case SYS_READDIR:
+      check_valid_address (esp+1);
+      check_valid_address (esp+2);
+      return_value = sys_readdir ((int)*(esp+1), (char *)*(esp+2));
+      break;
+    case SYS_ISDIR:
+      check_valid_address (esp+1);
+      return_value = sys_isdir ((int)*(esp+1));
+      break;
+    case SYS_INUMBER:
+      check_valid_address (esp+1);
+      return_value = sys_inumber ((int)*(esp+1));
       break;
     default:
       ASSERT (false);
@@ -370,3 +397,31 @@ check_valid_address (const void *address)
   if (!is_user_vaddr (address) || address == NULL)
     sys_exit (-1);
 }
+
+static int
+sys_chdir (const char *dir)
+{
+  return -1;
+}
+static int
+sys_mkdir (const char *dir)
+{
+  return -1;
+}
+static int
+sys_readdir (int fd, char *name)
+{
+  return -1;
+}
+static int
+sys_isdir (int fd)
+{
+  return -1;
+}
+
+static int
+sys_inumber (int fd)
+{
+  return -1;
+}
+
