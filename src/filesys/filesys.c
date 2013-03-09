@@ -84,8 +84,7 @@ filesys_open (const char *name)
   
   struct inode *inode = NULL;
 
-  if (dir != NULL)
-    dir_lookup (dir, file_name, &inode);
+  dir_lookup (dir, file_name, &inode);
   dir_close (dir);
 
   free (file_name);
@@ -112,7 +111,7 @@ filesys_remove (const char *name)
   if (inode != NULL && inode_type (inode) == DIR)
   {
     struct dir *rm_dir = dir_open(inode);
-    if (!dir_empty (rm_dir) || inode_open_cnt(inode) > 0)
+    if (!dir_empty (rm_dir))
     {
       free (file_name);
       dir_close (dir);

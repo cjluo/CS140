@@ -125,6 +125,12 @@ dir_lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
+  if (strlen(name) == 0)
+  {
+    *inode = inode_open (inode_sector (dir->inode));
+    return *inode != NULL;
+  }
+  
   if (lookup (dir, name, &e, NULL))
     *inode = inode_open (e.inode_sector);
   else
@@ -242,14 +248,14 @@ dir_empty (struct dir *dir)
   struct dir_entry e;
 
   int pos = 0;
-  
   while (inode_read_at (dir->inode, &e, sizeof e, pos) == sizeof e) 
     {
+      // printf("%s e.in_use %s\n", e.name, e.in_use ? "YES":"NO");
       pos += sizeof e;
       if (e.in_use && strcmp(e.name, ".") && strcmp(e.name, ".."))
-          return true;
+          return false;
     }
-  return false;
+  return true;
 }
 
 struct dir *
@@ -267,6 +273,12 @@ dir_parse (const char *name, char **file_name)
   else
     dir = dir_current ();
   
+  if (dir ==  NULL)
+    return NULL;
+  
+  while (*name == '/')
+    name++;
+  
   char *token, *save_ptr;
   struct inode *inode = NULL;
   
@@ -275,6 +287,9 @@ dir_parse (const char *name, char **file_name)
   if (name_buffer == NULL)
     return NULL;
   strlcpy (name_buffer, name, strlen (name) + 1);
+  
+  while (strlen(name) != 0 && name_buffer[strlen(name)-1] == '/')
+    name_buffer[strlen(name)-1] = '\0';
   
   for (token = strtok_r (name_buffer, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
