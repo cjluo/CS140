@@ -250,6 +250,7 @@ sys_open (const char *file)
   }
   fd_open_frame->file = f;
   fd_open_frame->fd = fd_gen ();
+  fd_open_frame->pos = 0;
   list_push_back (&thread_current ()->file_list, &fd_open_frame->elem);
   return fd_open_frame->fd;
 }
@@ -449,7 +450,13 @@ sys_readdir (int fd, char *name)
   struct fd_frame *f = fd_to_fd_frame (fd);
   if (f)
   {
-    return (int) (dir_readdir (dir_open (file_get_inode(f->file)), name));
+    struct dir *dir = dir_open (file_get_inode(f->file));
+    // dir_ls (dir);
+    dir_set_pos (dir, f->pos);
+    int result = (int) (dir_readdir (dir, name));
+    f->pos = dir_get_pos (dir);
+    dir_close (dir);
+    return result;
   }
   return (int) false;
 }

@@ -12,6 +12,7 @@ struct fd_frame
     int fd;
     struct file *file;
     struct list_elem elem;
+    int pos;
   };
 
 #endif /* userprog/syscall.h */

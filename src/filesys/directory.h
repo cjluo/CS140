@@ -32,4 +32,7 @@ bool dir_create_dot (const char *name);
 bool dir_empty (struct dir *);
 void dir_ls (struct dir *);
 
+void dir_set_pos (struct dir *, int);
+int dir_get_pos (struct dir *);
+
 #endif /* filesys/directory.h */

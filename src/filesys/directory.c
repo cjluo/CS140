@@ -238,6 +238,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e) 
     {
       dir->pos += sizeof e;
+      // printf("dir->pos %d\n", dir->pos);
       if (e.in_use && strcmp(e.name, ".") && strcmp(e.name, ".."))
         {
           strlcpy (name, e.name, NAME_MAX + 1);
@@ -371,4 +372,18 @@ dir_create_dot (const char *name)
   dir_close (dir);
   free (file_name);
   return success;
+}
+
+void
+dir_set_pos (struct dir *dir, int pos)
+{
+  dir->pos = pos;
+  // printf("dir set pos %d", pos);
+}
+
+int
+dir_get_pos (struct dir *dir)
+{
+   // printf("dir get pos %d", dir->pos);
+  return dir->pos;
 }
