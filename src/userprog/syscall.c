@@ -9,6 +9,8 @@
 #include "threads/malloc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "filesys/directory.h"
+#include "filesys/inode.h"
 #include "devices/input.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
@@ -401,7 +403,30 @@ check_valid_address (const void *address)
 static int
 sys_chdir (const char *dir)
 {
-  return -1;
+  check_valid_address (dir);
+  char *dir_name;
+  struct dir *new_dir = dir_parse (dir, &dir_name);
+  if (new_dir == NULL)
+  {
+    free (dir_name);
+    return -1;
+  }
+  
+  struct inode *inode = NULL;
+
+  if (new_dir != NULL)
+    dir_lookup (new_dir, dir_name, &inode);
+  dir_close (new_dir);
+
+  if (inode == NULL)
+  {
+    free (dir_name);
+    return -1;
+  }
+  
+  thread_current () ->current_dir = inode_sector (inode);
+  free (dir_name);
+  return 0;
 }
 static int
 sys_mkdir (const char *dir)

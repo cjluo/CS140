@@ -54,7 +54,9 @@ filesys_create (const char *name, off_t initial_size)
   block_sector_t inode_sector = 0;
   char *file_name;
   struct dir *dir = dir_parse(name, &file_name);
-  ASSERT (dir != NULL);
+  if (dir == NULL)
+    return false;
+  
   bool success = (dir != NULL
                   && free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size, FILE)
@@ -77,6 +79,9 @@ filesys_open (const char *name)
 {
   char *file_name;
   struct dir *dir = dir_parse(name, &file_name);
+  if (dir == NULL)
+    return NULL;
+  
   struct inode *inode = NULL;
 
   if (dir != NULL)
@@ -96,6 +101,9 @@ filesys_remove (const char *name)
 {
   char *file_name;
   struct dir *dir = dir_parse(name, &file_name);
+  if (dir == NULL)
+    return false;
+  
   bool success = dir != NULL && dir_remove (dir, file_name);
   dir_close (dir); 
 

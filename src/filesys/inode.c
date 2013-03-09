@@ -483,3 +483,8 @@ inode_type (const struct inode *inode)
   return inode->data.type;
 }
 
+block_sector_t
+inode_sector (const struct inode *inode)
+{
+  return inode->sector;
+}

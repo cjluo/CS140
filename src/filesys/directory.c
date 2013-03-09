@@ -6,7 +6,6 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 #include "threads/thread.h"
-#include "userprog/syscall.h"
 
 /* A directory. */
 struct dir 
@@ -241,7 +240,7 @@ struct dir *
 dir_parse (const char *name, char **file_name)
 {
   if (strlen (name) ==  0)
-    sys_exit (-1);
+    return NULL;
   
   struct dir *dir;
   if (*name == '/')
@@ -258,7 +257,7 @@ dir_parse (const char *name, char **file_name)
   /* get thread_name */
   char *name_buffer = malloc (strlen (name) + 1);
   if (name_buffer == NULL)
-    sys_exit (-1);
+    return NULL;
   strlcpy (name_buffer, name, strlen (name) + 1);
   for (token = strtok_r (name_buffer, "/", &save_ptr); token != NULL;
        token = strtok_r (NULL, "/", &save_ptr))
@@ -280,14 +279,12 @@ dir_parse (const char *name, char **file_name)
     if (!found || inode_type (inode) != DIR)
     {
       free (name_buffer);
-      sys_exit (-1);
+      return NULL;
     }
     
     dir = dir_open (inode);
   }
   
   free (name_buffer);
-  sys_exit (-1);
-  
   return NULL;
 }
