@@ -95,7 +95,7 @@ off_t
 file_write (struct file *file, const void *buffer, off_t size) 
 {
   if (inode_type (file->inode) != FILE)
-    return 0;
+    return (off_t)-1;
   off_t bytes_written = inode_write_at (file->inode, buffer, size, file->pos);
   file->pos += bytes_written;
   return bytes_written;

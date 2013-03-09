@@ -202,7 +202,7 @@ sys_create (const char *file, unsigned initial_size)
   /* test address */
   check_valid_address (file);
   // lock_acquire (&file_lock);
-  bool return_value = filesys_create (file, initial_size);
+  bool return_value = filesys_create (file, initial_size, FILE);
   // lock_release (&file_lock);
   return (int) return_value;
 }
@@ -409,7 +409,7 @@ sys_chdir (const char *dir)
   if (new_dir == NULL)
   {
     free (dir_name);
-    return -1;
+    return (int) false;
   }
   
   struct inode *inode = NULL;
@@ -417,21 +417,21 @@ sys_chdir (const char *dir)
   if (new_dir != NULL)
     dir_lookup (new_dir, dir_name, &inode);
   dir_close (new_dir);
-
+  
   if (inode == NULL)
   {
     free (dir_name);
-    return -1;
+    return (int) false;
   }
-  
   thread_current () ->current_dir = inode_sector (inode);
   free (dir_name);
-  return 0;
+  return (int) true;
 }
 static int
 sys_mkdir (const char *dir)
 {
-  return -1;
+  check_valid_address (dir);
+  return (int)filesys_create (dir, 0, DIR);
 }
 static int
 sys_readdir (int fd, char *name)

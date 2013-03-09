@@ -267,7 +267,6 @@ dir_parse (const char *name, char **file_name)
     /* last character */
     if (*save_ptr == '\0')
     {
-      // printf("%s\n", token);
       *file_name = malloc (strlen (token) + 1);
       strlcpy(*file_name, token, strlen(token) + 1);
       free (name_buffer);
