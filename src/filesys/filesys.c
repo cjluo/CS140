@@ -101,10 +101,17 @@ filesys_remove (const char *name)
   char *file_name = NULL;
   struct dir *dir = dir_parse(name, &file_name);
   if (dir == NULL)
+  {
+    free (file_name);
+    dir_close (dir);
     return false;
-  
+  }
   if (strcmp(file_name, ".") == 0 || strcmp(file_name, "..") == 0)
+  {
+    free (file_name);
+    dir_close (dir);
     return false;
+  }
   
   struct inode *inode = NULL;
   dir_lookup (dir, file_name, &inode);
@@ -117,11 +124,12 @@ filesys_remove (const char *name)
       dir_close (dir);
       return false;
     }
+    dir_remove (dir, ".");
+    dir_remove (dir, "..");
   }
   
   bool success = dir != NULL && dir_remove (dir, file_name);
   dir_close (dir); 
-
   free (file_name);
   return success;
 }
