@@ -426,6 +426,7 @@ sys_chdir (const char *dir)
     return (int) false;
   }
   thread_current () ->current_dir = inode_sector (inode);
+  
   free (dir_name);
   return (int) true;
 }
@@ -451,7 +452,6 @@ sys_readdir (int fd, char *name)
   if (f)
   {
     struct dir *dir = dir_open (file_get_inode(f->file));
-    // dir_ls (dir);
     dir_set_pos (dir, f->pos);
     int result = (int) (dir_readdir (dir, name));
     f->pos = dir_get_pos (dir);

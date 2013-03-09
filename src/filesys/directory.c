@@ -273,7 +273,7 @@ dir_ls (struct dir *dir)
     {
       pos += sizeof e;
       if (e.in_use)
-          printf("%s\n", e.name);
+        printf("%s\n", e.name);
     }
 }
 
@@ -352,10 +352,7 @@ dir_create_dot (const char *name)
   if (strlen(file_name) != 0)
   {
     struct inode *inode = NULL;
-
     dir_lookup (parent, file_name, &inode);
-    dir_close (parent);
-  
     ASSERT (inode != NULL);
     dir = dir_open (inode);
   }
@@ -363,12 +360,14 @@ dir_create_dot (const char *name)
     dir = parent;
   
   bool success = true;
-  
+
   /* add .. */
   success &= dir_add (dir, "..", inode_sector(parent->inode));
   /* add . */
   success &= dir_add (dir, ".", inode_sector(dir->inode));
   
+  if (dir != parent)
+    dir_close (parent);
   dir_close (dir);
   free (file_name);
   return success;
@@ -378,12 +377,10 @@ void
 dir_set_pos (struct dir *dir, int pos)
 {
   dir->pos = pos;
-  // printf("dir set pos %d", pos);
 }
 
 int
 dir_get_pos (struct dir *dir)
 {
-   // printf("dir get pos %d", dir->pos);
   return dir->pos;
 }
