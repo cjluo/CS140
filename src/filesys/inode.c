@@ -488,3 +488,9 @@ inode_sector (const struct inode *inode)
 {
   return inode->sector;
 }
+
+int
+inode_open_cnt (const struct inode *inode)
+{
+  return inode->open_cnt;
+}
