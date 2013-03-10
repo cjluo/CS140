@@ -175,8 +175,10 @@ archive_directory (char file_name[], size_t file_name_size, int file_fd,
       
   file_name[dir_len] = '/';
   while (readdir (file_fd, &file_name[dir_len + 1])) 
+  {
     if (!archive_file (file_name, file_name_size, archive_fd, write_error))
       success = false;
+  }
   file_name[dir_len] = '\0';
 
   return success;

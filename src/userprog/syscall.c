@@ -451,10 +451,10 @@ sys_readdir (int fd, char *name)
   if (f)
   {
     struct dir *dir = dir_open (file_get_inode(f->file));
+    
     dir_set_pos (dir, f->pos);
     int result = (int) (dir_readdir (dir, name));
     f->pos = dir_get_pos (dir);
-    dir_close (dir);
     return result;
   }
   return (int) false;

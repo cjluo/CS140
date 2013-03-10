@@ -274,7 +274,7 @@ dir_ls (struct dir *dir)
     {
       pos += sizeof e;
       if (e.in_use)
-        printf("%s\n", e.name);
+        printf("pos %d: %s\n", pos, e.name);
     }
 }
 
