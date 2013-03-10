@@ -179,16 +179,16 @@ inode_open (block_sector_t sector)
   struct list_elem *e;
   struct inode *inode;
 
+  
   /* Check whether this inode is already open. */
   for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
        e = list_next (e)) 
     {
       inode = list_entry (e, struct inode, elem);
       if (inode->sector == sector) 
-        {
-          // printf ("reopen1 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
-          return inode_reopen (inode);
-        }
+      {
+        return inode_reopen (inode);
+      }
     }
 
   /* Allocate memory. */
@@ -210,12 +210,8 @@ inode_open (block_sector_t sector)
 struct inode *
 inode_reopen (struct inode *inode)
 {
-  // printf ("reopen2 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
   if (inode == NULL || inode->removed)
-  {
-    // printf ("return NULL\n");
     return NULL;
-  }
 
   inode->open_cnt++;
   return inode;

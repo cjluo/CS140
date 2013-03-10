@@ -224,6 +224,7 @@ dir_remove (struct dir *dir, const char *name)
 
  done:
   inode_close (inode);
+  
   return success;
 }
 
@@ -329,9 +330,10 @@ dir_parse (const char *name, char **file_name)
     if (!found || inode_type (inode) != DIR)
     {
       free (name_buffer);
+      inode_close (inode);
       return NULL;
     }
-    
+
     dir = dir_open (inode);
   }
   

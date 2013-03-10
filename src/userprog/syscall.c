@@ -416,8 +416,7 @@ sys_chdir (const char *dir)
   
   struct inode *inode = NULL;
 
-  if (new_dir != NULL)
-    dir_lookup (new_dir, dir_name, &inode);
+  dir_lookup (new_dir, dir_name, &inode);
   dir_close (new_dir);
   
   if (inode == NULL)
