@@ -29,6 +29,7 @@ struct inode_disk
   };
 
 static int inode_create_indirect (block_sector_t *, size_t);
+static int inode_create_double_indirect (block_sector_t *, size_t);
 static char zeros[BLOCK_SECTOR_SIZE];
 static int inode_extend (struct inode *, off_t );
 
@@ -409,10 +410,13 @@ inode_extend (struct inode *inode, off_t offset)
 
   sectors -= DIRECT_SIZE;
 
-  if (sectors >= 0)
+  if (sectors >= 0 && sectors < INDIRECT_SIZE)
     return inode_create_indirect (&disk_inode->sector_indirect, sectors);
 
-  return -1;
+  sectors -= INDIRECT_SIZE;
+  if (sectors >= 0)
+    return inode_create_double_indirect (&disk_inode->sector_double_indirect,
+                                         sectors);
 }
 
 static int 
@@ -430,7 +434,7 @@ inode_create_indirect (block_sector_t *sector_indirect, size_t sectors)
     if (free_map_allocate (1, sector_indirect))
     {
       block_sector_t indirect[INDIRECT_SIZE];
-      memset (indirect, -1, INDIRECT_SIZE * 4);    
+      memset (indirect, -1, INDIRECT_SIZE * SECTOR_INDEX_SIZE);    
       indirect[sectors] = indirect_idx;
       cache_write_block (*sector_indirect, indirect, BLOCK_SECTOR_SIZE, 0);
       return indirect_idx;
@@ -447,6 +451,38 @@ inode_create_indirect (block_sector_t *sector_indirect, size_t sectors)
   }
 
   return -1;
+}
+
+static int 
+inode_create_double_indirect (block_sector_t *sector_double_indirect, size_t sectors)
+{
+  if ((int)*sector_double_indirect == -1)
+  {
+    if (free_map_allocate (1, sector_double_indirect))
+    {
+      block_sector_t indirect[INDIRECT_SIZE];
+      memset (indirect, -1, INDIRECT_SIZE * SECTOR_INDEX_SIZE);    
+      cache_write_block (*sector_double_indirect, indirect, BLOCK_SECTOR_SIZE, 
+                         0);
+    }
+    else
+      return -1;
+  }
+
+  block_sector_t sector_indirect;
+  int sectors_indirect = sectors / INDIRECT_SIZE;
+  cache_read_block (*sector_double_indirect,
+                    &sector_indirect,
+                    SECTOR_INDEX_SIZE, 
+                    sectors_indirect * SECTOR_INDEX_SIZE);
+                      
+  int return_value = inode_create_indirect (&sector_indirect,
+                                            sectors % INDIRECT_SIZE);
+  cache_write_block (*sector_double_indirect,
+                     &sector_indirect,
+                     SECTOR_INDEX_SIZE, 
+                     sectors_indirect * SECTOR_INDEX_SIZE);
+  return return_value;
 }
 
 /* Disables writes to INODE.
