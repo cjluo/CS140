@@ -41,7 +41,6 @@ void cache_write_block (block_sector_t, const void *, int, int);
 
 void cache_put_block_all_background (void);
 
-void cache_readahead (void);
-void cache_writebehind (void);
-
+void cache_readahead (block_sector_t);
+void cache_get_block_all_background (void);
 #endif

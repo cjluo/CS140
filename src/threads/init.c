@@ -130,9 +130,11 @@ main (void)
 
   printf ("Boot complete.\n");
   
-  thread_create ("background", PRI_DEFAULT,
+  thread_create ("background_write", PRI_DEFAULT,
                  cache_put_block_all_background, NULL);
-  
+  thread_create ("background_read", PRI_DEFAULT,
+                 cache_get_block_all_background, NULL);
+                 
   /* Run actions specified on kernel command line. */
   run_actions (argv);
 

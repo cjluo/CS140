@@ -1,15 +1,25 @@
-#include <hash.h>
+#include <list.h>
 #include <stdio.h>
 #include <string.h>
 #include "devices/block.h"
 #include "devices/rtc.h"
 #include "devices/timer.h"
 #include "threads/synch.h"
+#include "threads/malloc.h"
 #include "filesys/cache.h"
 #include "filesys/filesys.h"
 
 static struct cache_block buffer_cache[CACHESIZE];
 static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];
+static struct list readahead_list;
+static struct lock readahead_lock;
+static struct condition readahead_list_not_empty;
+
+struct readahead_block
+{
+  block_sector_t sector;
+  struct list_elem elem;
+};
 
 void
 cache_init (void)
@@ -33,6 +43,10 @@ cache_init (void)
     
     buffer_cache[i].data = &blocks[i * BLOCK_SECTOR_SIZE];
   }
+  
+  list_init (&readahead_list);
+  lock_init (&readahead_lock);
+  cond_init (&readahead_list_not_empty);
 }
 
 void
@@ -43,8 +57,6 @@ int chunk_size, int sector_ofs)
   if (block == NULL)
     block = cache_get_block (sector);
 
-  // 去问一下
-  /* When the old block is in IO phase */
   while (block->io)
   {
     lock_acquire (&block->cache_lock);
@@ -215,14 +227,16 @@ void cache_put_block (struct cache_block *block)
   // lock_release (&block->cache_lock);
 }
 
-void cache_put_block_all (void)
+void
+cache_put_block_all (void)
 {
   int i;
   for (i = 0; i < CACHESIZE; i++)
     cache_put_block (&buffer_cache[i]);
 }
 
-void cache_put_block_all_background (void)
+void
+cache_put_block_all_background (void)
 {
   while(true)
   {
@@ -234,4 +248,50 @@ void cache_put_block_all_background (void)
       cache_put_block (&buffer_cache[i]);
     timer_msleep (30 * 1000);
   }
+}
+
+void
+cache_readahead (block_sector_t sector)
+{
+  struct readahead_block *b = malloc (sizeof(struct readahead_block));
+  if (b == NULL)
+    return;
+  b->sector = sector;
+  lock_acquire (&readahead_lock);
+  list_push_front (&readahead_list, &b->elem);
+  cond_signal (&readahead_list_not_empty, &readahead_lock);
+  lock_release (&readahead_lock);
+  return;
+}
+
+void
+cache_get_block_all_background (void)
+{
+  while (true)
+  {
+    if (filesys_finished)
+      break;
+    lock_acquire (&readahead_lock);
+    while (list_empty (&readahead_list))
+      cond_wait (&readahead_list_not_empty, &readahead_lock);
+    
+    struct list_elem *e = list_pop_front (&readahead_list);
+    struct readahead_block *b = list_entry (e, struct readahead_block, elem);
+    
+    struct cache_block *block = cache_lookup_block(b->sector);
+    if (block == NULL)
+      block = cache_get_block (b->sector);
+    
+    free (b);
+    lock_release (&readahead_lock);
+  }
+  
+  lock_acquire (&readahead_lock);
+  while (!list_empty (&readahead_list))
+  {
+    struct list_elem *e = list_pop_front (&readahead_list);
+    struct readahead_block *b = list_entry (e, struct readahead_block, elem);
+    free (b);
+  }
+  lock_release (&readahead_lock);
 }
