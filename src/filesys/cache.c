@@ -221,3 +221,17 @@ void cache_put_block_all (void)
   for (i = 0; i < CACHESIZE; i++)
     cache_put_block (&buffer_cache[i]);
 }
+
+void cache_put_block_all_background (void)
+{
+  while(true)
+  {
+    if (filesys_finished)
+      break;
+    
+    int i;
+    for (i = 0; i < CACHESIZE; i++)
+      cache_put_block (&buffer_cache[i]);
+    timer_msleep (30 * 1000);
+  }
+}

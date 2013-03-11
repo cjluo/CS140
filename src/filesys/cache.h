@@ -7,6 +7,7 @@
 
 #define CACHESIZE 64
 
+bool filesys_finished;
 
 struct cache_block
 {
@@ -37,6 +38,8 @@ void cache_put_block (struct cache_block *);
 void cache_put_block_all (void);
 void cache_read_block (block_sector_t, void *, int, int);
 void cache_write_block (block_sector_t, const void *, int, int);
+
+void cache_put_block_all_background (void);
 
 void cache_readahead (void);
 void cache_writebehind (void);

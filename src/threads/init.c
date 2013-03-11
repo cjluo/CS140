@@ -36,6 +36,7 @@
 #include "devices/ide.h"
 #include "filesys/filesys.h"
 #include "filesys/fsutil.h"
+#include "filesys/cache.h"
 #endif
 
 /* Page directory with kernel mappings only. */
@@ -128,6 +129,9 @@ main (void)
 #endif
 
   printf ("Boot complete.\n");
+  
+  thread_create ("background", PRI_DEFAULT,
+                 cache_put_block_all_background, NULL);
   
   /* Run actions specified on kernel command line. */
   run_actions (argv);
@@ -340,7 +344,6 @@ run_actions (char **argv)
       a->function (argv);
       argv += a->argc;
     }
-  
 }
 
 /* Prints a kernel command line help message and powers off the

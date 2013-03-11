@@ -20,6 +20,7 @@ static void do_format (void);
 void
 filesys_init (bool format) 
 {
+  filesys_finished = false;
   fs_device = block_get_role (BLOCK_FILESYS);
   if (fs_device == NULL)
     PANIC ("No file system device found, can't initialize file system.");
@@ -40,6 +41,7 @@ void
 filesys_done (void) 
 {
   /* write back dirty to disk */
+  filesys_finished = true;
   cache_put_block_all ();
   free_map_close ();
 }
