@@ -296,15 +296,19 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 
       if (sector_idx == -1)
       {
+        lock_acquire (&inode->extend_lock);
         /*read unallocated sectors should fill with zeros*/
         if (offset <= inode_length (inode))
         {
-          lock_acquire (&inode->extend_lock);
           sector_idx = inode_extend (inode, offset);
-          lock_release (&inode->extend_lock);
         }
         else 
+        {
+          lock_release (&inode->extend_lock);
           return 0;
+        }
+        lock_release (&inode->extend_lock);
+   
       }
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
@@ -393,11 +397,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     lock_acquire (&inode->extend_lock);
     off_t inode_left = inode_length (inode) - offset;
     if (inode_left <= 0)
-    {
       inode->data.length = offset;
-      cache_write_block (inode->sector, &inode->data, BLOCK_SECTOR_SIZE, 0);
-    }
     lock_release (&inode->extend_lock);
+
+    if (inode_left <= 0)
+      cache_write_block (inode->sector, &inode->data, BLOCK_SECTOR_SIZE, 0);
 
   return bytes_written;  
 }
