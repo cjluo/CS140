@@ -13,7 +13,10 @@ static struct cache_block buffer_cache[CACHESIZE];
 static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];
 static struct list readahead_list;
 static struct lock readahead_lock;
+static struct lock buffer_cache_lock;
 static struct condition readahead_list_not_empty;
+
+static struct cache_block *cache_lookup_helper (block_sector_t);
 
 struct readahead_block
 {
@@ -28,13 +31,13 @@ cache_init (void)
   int i;
   for (i = 0; i < CACHESIZE; i++)
   {
-    buffer_cache[i].sector = 0;
+    buffer_cache[i].sector = -1;
+    buffer_cache[i].next_sector = -1;
     
     lock_init (&buffer_cache[i].cache_lock);
     cond_init (&buffer_cache[i].cache_available);
 
     buffer_cache[i].dirty = false;
-    buffer_cache[i].valid = false;
     buffer_cache[i].io = false;
 
     buffer_cache[i].readers = 0;
@@ -46,6 +49,7 @@ cache_init (void)
   
   list_init (&readahead_list);
   lock_init (&readahead_lock);
+  lock_init (&buffer_cache_lock);  
   cond_init (&readahead_list_not_empty);
 }
 
@@ -53,19 +57,14 @@ void
 cache_read_block (block_sector_t sector, void *buffer,
 int chunk_size, int sector_ofs)
 {
-  struct cache_block *block = cache_lookup_block(sector);
-  if (block == NULL)
-    block = cache_get_block (sector);
+  struct cache_block *block = cache_get_block(sector);
 
+  lock_acquire (&block->cache_lock);
   while (block->io)
   {
-    lock_acquire (&block->cache_lock);
     cond_wait(&block->cache_available, &block->cache_lock);
-    lock_release (&block->cache_lock);
-    block = cache_get_block (sector);
   }
-  
-  lock_acquire (&block->cache_lock);
+
   block->readers++;
   lock_release (&block->cache_lock);
   
@@ -73,34 +72,27 @@ int chunk_size, int sector_ofs)
   
   lock_acquire (&block->cache_lock);
   block->readers--;
-  lock_release (&block->cache_lock);
-  
+
   if (block->readers == 0 && block->writers == 0)
-  {
-    lock_acquire (&block->cache_lock);
     cond_broadcast (&block->cache_available, &block->cache_lock);
-    lock_release (&block->cache_lock);
-  }
+
+  lock_release (&block->cache_lock);
+
 }
 
 void
 cache_write_block (block_sector_t sector, const void *buffer,
 int chunk_size, int sector_ofs)
 {
-  struct cache_block *block = cache_lookup_block(sector);
-  if (block == NULL)
-    block = cache_get_block (sector);
+  struct cache_block *block = cache_get_block(sector);
 
   /* When the old block is in IO phase */
+  lock_acquire (&block->cache_lock);  
   while (block->io)
   {
-    lock_acquire (&block->cache_lock);
     cond_wait(&block->cache_available, &block->cache_lock);
-    lock_release (&block->cache_lock);
-    block = cache_get_block (sector);
   }
-  
-  lock_acquire (&block->cache_lock);
+
   block->writers++;
   lock_release (&block->cache_lock);
   
@@ -109,28 +101,62 @@ int chunk_size, int sector_ofs)
   
   lock_acquire (&block->cache_lock);
   block->writers--;
+  if (block->readers == 0 && block->writers == 0)
+    cond_broadcast (&block->cache_available, &block->cache_lock);
+  
   lock_release (&block->cache_lock);
 
-  if (block->readers == 0 && block->writers == 0)
-  {
-    lock_acquire (&block->cache_lock);
-    cond_broadcast (&block->cache_available, &block->cache_lock);
-    lock_release (&block->cache_lock);
-  }
 }
 
+
 struct cache_block *
-cache_lookup_block (block_sector_t sector)
+cache_lookup_helper (block_sector_t sector)
 {
+  ASSERT ((int)sector != -1);
+
   int i;
   for (i = 0; i < CACHESIZE; i++)
   {
-    if (buffer_cache[i].valid && buffer_cache[i].sector == sector)
+    if (buffer_cache[i].sector == sector)
       return &buffer_cache[i];
   }
 
   return NULL;
 }
+
+
+struct cache_block *
+cache_lookup_block (block_sector_t sector)
+{
+  ASSERT ((int)sector != -1);
+  
+  lock_acquire (&buffer_cache_lock);
+  struct cache_block *return_value = cache_lookup_helper (sector);
+  
+  if (return_value != NULL)
+  {
+    return_value->next_sector = -1; 
+    lock_release (&buffer_cache_lock);
+    return return_value;
+  }
+
+  int i;
+  for (i = 0; i < CACHESIZE; i++)
+  {
+    if (buffer_cache[i].next_sector == sector)
+    {
+      lock_release (&buffer_cache_lock);
+      return &buffer_cache[i];
+    }
+  }
+ 
+  return_value = next_available_block ();
+  return_value->next_sector = sector; 
+  lock_release (&buffer_cache_lock);
+  return return_value;
+
+}
+
 
 struct cache_block *
 next_available_block (void)
@@ -152,7 +178,7 @@ next_available_block (void)
     if (buffer_cache[i].io == true)
       continue;
 
-    if (buffer_cache[i].valid == false)
+    if ((int)buffer_cache[i].sector == -1)
       return &buffer_cache[i];
     else
     {
@@ -187,7 +213,11 @@ next_available_block (void)
 struct cache_block *
 cache_get_block (block_sector_t sector)
 {
-  struct cache_block *block = next_available_block();
+
+  struct cache_block *block = cache_lookup_block (sector);
+  if ((int)block->next_sector == -1)
+    return block;
+
   lock_acquire (&block->cache_lock);
   
   while (block->writers != 0 || block->readers != 0)
@@ -204,11 +234,11 @@ cache_get_block (block_sector_t sector)
   
   
   block->sector = sector;
+  block->next_sector = -1;  
   block->dirty = false;
   block->time =  timer_ticks ();
   block->readers = 0;
   block->writers = 0;
-  block->valid = true;
   
   block->io = false;
   lock_release (&block->cache_lock);
@@ -220,10 +250,15 @@ void cache_put_block (struct cache_block *block)
   // lock_acquire (&block->cache_lock);
   // while (block->writers != 0 || block->readers != 0)
   //   cond_wait (&block->cache_available, &block->cache_lock);
+
   if (!block->dirty)
     return;
+
+  // block->io = true;
   block_write (fs_device, block->sector, block->data);
   block->dirty = false;  
+  // block->io = false;
+  // cond_broadcast (&block->cache_available, &block->cache_lock);
   // lock_release (&block->cache_lock);
 }
 
@@ -278,9 +313,8 @@ cache_get_block_all_background (void)
     struct list_elem *e = list_pop_front (&readahead_list);
     struct readahead_block *b = list_entry (e, struct readahead_block, elem);
     
-    struct cache_block *block = cache_lookup_block(b->sector);
-    if (block == NULL)
-      block = cache_get_block (b->sector);
+    /* double check this function */
+    cache_get_block (b->sector);
     
     free (b);
     lock_release (&readahead_lock);
