@@ -137,7 +137,7 @@ filesys_remove (const char *name)
     }
     
     // to do: close directory
-    // dir_close (rm_dir);
+    dir_close_free (rm_dir);
   }
   
   inode_close (inode);

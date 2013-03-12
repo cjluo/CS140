@@ -19,6 +19,7 @@ struct dir *dir_open (struct inode *);
 struct dir *dir_open_root (void);
 struct dir *dir_reopen (struct dir *);
 void dir_close (struct dir *);
+void dir_close_free (struct dir *);
 struct inode *dir_get_inode (struct dir *);
 
 /* Reading and writing. */

@@ -79,6 +79,16 @@ dir_close (struct dir *dir)
     }
 }
 
+/* Destroys DIR  */
+void
+dir_close_free (struct dir *dir) 
+{
+  if (dir != NULL)
+    {
+      free (dir);
+    }
+}
+
 /* Returns the inode encapsulated by DIR. */
 struct inode *
 dir_get_inode (struct dir *dir) 

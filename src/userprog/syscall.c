@@ -455,6 +455,8 @@ sys_readdir (int fd, char *name)
     dir_set_pos (dir, f->pos);
     int result = (int) (dir_readdir (dir, name));
     f->pos = dir_get_pos (dir);
+
+    dir_close_free (dir);
     return result;
   }
   return (int) false;
