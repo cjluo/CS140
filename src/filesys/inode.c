@@ -52,6 +52,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
     struct inode_disk data;             /* Inode content. */
+    struct lock extend_lock;
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -201,6 +202,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  lock_init (&inode->extend_lock);
   cache_read_block (inode->sector, &inode->data, BLOCK_SECTOR_SIZE, 0);
   return inode;
 }
@@ -296,7 +298,11 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       {
         /*read unallocated sectors should fill with zeros*/
         if (offset <= inode_length (inode))
+        {
+          lock_acquire (&inode->extend_lock);
           sector_idx = inode_extend (inode, offset);
+          lock_release (&inode->extend_lock);
+        }
         else 
           return 0;
       }
@@ -352,8 +358,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
       if (sector_idx == -1)
       {
+        lock_acquire (&inode->extend_lock);
         int return_value = inode_extend (inode, offset);
-        // printf ("## byte_to_sector4 %d\n", return_value);
+        lock_release (&inode->extend_lock);        
 
         if (return_value <=0)
           break;
@@ -383,12 +390,15 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       bytes_written += chunk_size;
     }
     
+    lock_acquire (&inode->extend_lock);
     off_t inode_left = inode_length (inode) - offset;
     if (inode_left <= 0)
     {
       inode->data.length = offset;
       cache_write_block (inode->sector, &inode->data, BLOCK_SECTOR_SIZE, 0);
     }
+    lock_release (&inode->extend_lock);
+
   return bytes_written;  
 }
 

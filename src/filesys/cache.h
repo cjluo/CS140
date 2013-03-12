@@ -12,13 +12,15 @@ bool filesys_finished;
 struct cache_block
 {
   block_sector_t sector;
+  block_sector_t next_sector;
+
   
   struct lock cache_lock;
   struct condition cache_available;
   
   bool dirty;
-  bool valid;
   bool io;
+  bool valid;
   time_t time;
   
   uint32_t readers;
