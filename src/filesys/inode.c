@@ -170,6 +170,21 @@ inode_create (block_sector_t sector, off_t length, enum inode_type type)
   return success;
 }
 
+void
+inode_finish (void)
+{
+  struct list_elem *e;
+  struct inode *inode;
+
+  while (!list_empty (&open_inodes))
+  {
+    e = list_pop_front (&open_inodes);
+    inode = list_entry (e, struct inode, elem);
+    inode_close (inode);
+  }
+}
+
+
 /* Reads an inode from SECTOR
    and returns a `struct inode' that contains it.
    Returns a null pointer if memory allocation fails. */

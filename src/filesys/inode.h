@@ -35,5 +35,6 @@ off_t inode_length (const struct inode *);
 enum inode_type inode_type (const struct inode *);
 block_sector_t inode_sector (const struct inode *);
 int inode_open_cnt (const struct inode *);
+void inode_finish (void);
 
 #endif /* filesys/inode.h */

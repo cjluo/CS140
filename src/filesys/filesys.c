@@ -44,6 +44,7 @@ filesys_done (void)
   filesys_finished = true;
   cache_put_block_all ();
   free_map_close ();
+  inode_finish ();
 }
 
 /* Creates a file named NAME with the given INITIAL_SIZE.
