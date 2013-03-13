@@ -7,10 +7,10 @@
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
-#define DIRECT_SIZE 123
-#define INDIRECT_SIZE 128
-#define SECTOR_INDEX_SIZE 4
 
+/* inode type, 
+   which is chosed when inode create,
+*/
 enum inode_type
 {
   FILE,

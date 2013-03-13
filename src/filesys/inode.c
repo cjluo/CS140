@@ -17,13 +17,15 @@
 
 
 /* On-disk inode.
-   Must be exactly BLOCK_SECTOR_SIZE bytes long. */
-struct inode_disk
+   Must be exactly BLOCK_SECTOR_SIZE bytes long.
+   We have direct sector, indirect sector, 
+   and double indirect sector */
+  struct inode_disk
   {
     off_t length;                       /* File size in bytes. */
     unsigned magic;                     /* Magic number. */
     enum inode_type type;
-    block_sector_t sector_indirect;
+    block_sector_t sector_indirect;     
     block_sector_t sector_double_indirect;
     block_sector_t sector_direct[DIRECT_SIZE];   /* First data sector. */
   };

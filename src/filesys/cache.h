@@ -11,18 +11,22 @@ bool filesys_finished;
 
 struct cache_block
 {
+  /* Record the current sector, it is (-1) if not initialized */
   block_sector_t sector;
+  /* Record the next sector, it will be set while doing I/O */  
   block_sector_t next_sector;
-
   
+  /* condition and lock for I/O */
   struct lock cache_lock;
   struct condition cache_available;
   
   bool dirty;
-  bool io;
-  bool valid;
+  bool io; /* check if the cache block is I/O ing*/
+
+  /* update the time */
   time_t time;
   
+  /* record how many readers/writers are on the cache block */
   uint32_t readers;
   uint32_t writers;
   
