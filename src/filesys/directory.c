@@ -7,14 +7,6 @@
 #include "threads/malloc.h"
 #include "threads/thread.h"
 
-/* A directory. */
-struct dir 
-  {
-    struct inode *inode;                /* Backing store. */
-    off_t pos;                          /* Current position. */
-    struct lock dir_lock;
-  };
-
 /* A single directory entry. */
 struct dir_entry 
   {
@@ -113,8 +105,6 @@ lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  lock_acquire (&dir->dir_lock);
-
   for (ofs = 0; inode_read_at (dir->inode, &e, sizeof e, ofs) == sizeof e;
        ofs += sizeof e) 
     if (e.in_use && !strcmp (name, e.name)) 
@@ -123,12 +113,8 @@ lookup (const struct dir *dir, const char *name,
           *ep = e;
         if (ofsp != NULL)
           *ofsp = ofs;
-
-        lock_release (&dir->dir_lock);
         return true;
       }
-
-  lock_release (&dir->dir_lock);
   return false;
 }
 

@@ -9,16 +9,16 @@
 #include "filesys/cache.h"
 #include "filesys/filesys.h"
 
-static struct cache_block buffer_cache[CACHESIZE];
-static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];
-static struct list readahead_list;
-static struct lock readahead_lock;
-static struct lock buffer_cache_lock;
-static struct condition readahead_list_not_empty;
-
+static struct cache_block buffer_cache[CACHESIZE]; /* The cache block header */
+static char blocks[CACHESIZE * BLOCK_SECTOR_SIZE];  /* The cache block space */
+static struct list readahead_list;             /* A queue for read ahead task*/
+static struct lock readahead_lock;   /* Read ahead lock to protect the queue */
+static struct lock buffer_cache_lock;        /* buffer cache lock to protect */
+                                             /* the block header */
+static struct condition readahead_list_not_empty;    /* read ahead not empty */
 static struct cache_block *cache_lookup_helper (block_sector_t);
 
-struct readahead_block
+struct readahead_block             /* read ahead block frame */
 {
   block_sector_t sector;
   struct list_elem elem;
@@ -27,7 +27,6 @@ struct readahead_block
 void
 cache_init (void)
 {
-
   int i;
   for (i = 0; i < CACHESIZE; i++)
   {
@@ -57,13 +56,12 @@ void
 cache_read_block (block_sector_t sector, void *buffer,
 int chunk_size, int sector_ofs)
 {
+  /* look up for the block */
   struct cache_block *block = cache_get_block(sector);
-
+  /* lock the block sector lock and wait for io if any */
   lock_acquire (&block->cache_lock);
   while (block->io)
-  {
     cond_wait(&block->cache_available, &block->cache_lock);
-  }
 
   block->readers++;
   lock_release (&block->cache_lock);
@@ -73,20 +71,20 @@ int chunk_size, int sector_ofs)
   lock_acquire (&block->cache_lock);
   block->readers--;
 
+  /* If the current block is idle, signal the other threads */
   if (block->readers == 0 && block->writers == 0)
     cond_broadcast (&block->cache_available, &block->cache_lock);
 
   lock_release (&block->cache_lock);
-
 }
 
 void
 cache_write_block (block_sector_t sector, const void *buffer,
 int chunk_size, int sector_ofs)
 {
+  /* look up for the block */
   struct cache_block *block = cache_get_block(sector);
-
-  /* When the old block is in IO phase */
+  /* lock the block sector lock and wait for io if any */
   lock_acquire (&block->cache_lock);  
   while (block->io)
   {
@@ -101,29 +99,27 @@ int chunk_size, int sector_ofs)
   
   lock_acquire (&block->cache_lock);
   block->writers--;
+  
+  /* If the current block is idle, signal the other threads */
   if (block->readers == 0 && block->writers == 0)
     cond_broadcast (&block->cache_available, &block->cache_lock);
   
   lock_release (&block->cache_lock);
-
 }
 
-
+/* The helper just returns the block matching the sector number */
 struct cache_block *
 cache_lookup_helper (block_sector_t sector)
 {
   ASSERT ((int)sector != -1);
-
   int i;
   for (i = 0; i < CACHESIZE; i++)
   {
     if (buffer_cache[i].sector == sector)
       return &buffer_cache[i];
   }
-
   return NULL;
 }
-
 
 struct cache_block *
 cache_lookup_block (block_sector_t sector)

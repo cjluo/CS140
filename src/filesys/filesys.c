@@ -63,10 +63,11 @@ filesys_create (const char *name, off_t initial_size, enum inode_type type)
     return false;
   }
   
-  bool success = (dir != NULL
-                  && free_map_allocate (1, &inode_sector)
+  lock_acquire (&dir->dir_lock);
+  bool success = (free_map_allocate (1, &inode_sector)
                   && inode_create (inode_sector, initial_size, type)
                   && dir_add (dir, file_name, inode_sector));
+  lock_release (&dir->dir_lock);
   if (!success && inode_sector != 0) 
     free_map_release (inode_sector, 1);
   
@@ -122,6 +123,7 @@ filesys_remove (const char *name)
     return false;
   }
 
+  lock_acquire (&dir->dir_lock);
   struct inode *inode = NULL;
   dir_lookup (dir, file_name, &inode);
   
@@ -132,17 +134,17 @@ filesys_remove (const char *name)
     if (!dir_empty (rm_dir))
     {
       free (file_name);
+      lock_release (&dir->dir_lock);
       dir_close (dir);
       dir_close (rm_dir);
       return false;
     }
-    
-    // to do: close directory
     dir_close_free (rm_dir);
   }
   
   inode_close (inode);
   bool success = dir_remove (dir, file_name);
+  lock_release (&dir->dir_lock);
   dir_close (dir); 
   free (file_name);
   
