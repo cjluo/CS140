@@ -104,8 +104,11 @@ filesys_open (const char *name)
 
   dir_lookup (dir, file_name, &inode);
   dir_close (dir);
-
   free (file_name);
+   
+  if (inode == NULL)
+    return NULL;
+
   return file_open (inode);
 }
 
@@ -123,6 +126,8 @@ filesys_remove (const char *name)
     free (file_name);
     return false;
   }
+
+  /* compare if file_name is "." and ".." */
   if (strcmp(file_name, ".") == 0 || strcmp(file_name, "..") == 0)
   {
     free (file_name);
@@ -134,6 +139,9 @@ filesys_remove (const char *name)
   struct inode *inode = NULL;
   dir_lookup (dir, file_name, &inode);
   
+  /* if the inode is the directory, we remove the directory 
+   * but keep the inode.
+   */
   if (inode != NULL && inode_type (inode) == DIR)
   {
     struct dir *rm_dir = dir_open(inode);
@@ -149,6 +157,7 @@ filesys_remove (const char *name)
     dir_close_free (rm_dir);
   }
   
+  if (inode != NULL)
   inode_close (inode);
   bool success = dir_remove (dir, file_name);
   lock_release (&dir->dir_lock);

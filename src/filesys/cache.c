@@ -54,12 +54,16 @@ cache_init (void)
   cond_init (&buffer_available);
 }
 
+/* cache_read_block, which is layer between inode read and block read */
 void
 cache_read_block (block_sector_t sector, void *buffer,
 int chunk_size, int sector_ofs)
 {
   /* look up for the block */
   struct cache_block *block = cache_get_block(sector);
+  if (block == NULL)
+    return;
+
   /* lock the block sector lock and wait for io if any */
   lock_acquire (&block->cache_lock);
   while (block->io)
@@ -68,6 +72,7 @@ int chunk_size, int sector_ofs)
   block->readers++;
   lock_release (&block->cache_lock);
   
+  /* memcpy operation is not blocked */
   memcpy(buffer, block->data + sector_ofs, chunk_size);
   
   lock_acquire (&block->cache_lock);
@@ -80,12 +85,16 @@ int chunk_size, int sector_ofs)
   lock_release (&block->cache_lock);
 }
 
+/* cache_write_block, which is layer between inode write and block write */
 void
 cache_write_block (block_sector_t sector, const void *buffer,
 int chunk_size, int sector_ofs)
 {
   /* look up for the block */
   struct cache_block *block = cache_get_block(sector);
+  if (block == NULL)
+    return;
+
   /* lock the block sector lock and wait for io if any */
   lock_acquire (&block->cache_lock);  
   while (block->io)
@@ -95,7 +104,8 @@ int chunk_size, int sector_ofs)
 
   block->writers++;
   lock_release (&block->cache_lock);
-  
+
+  /* memcpy operation is not blocked */  
   memcpy(block->data + sector_ofs, buffer, chunk_size);
   block->dirty = true;
   
@@ -109,12 +119,16 @@ int chunk_size, int sector_ofs)
   lock_release (&block->cache_lock);
 }
 
-/* The helper just returns the block matching the sector number */
+/* The helper just returns the block matching the sector number,
+ * it is called helding buffer_cache_lock.  
+ */
 struct cache_block *
 cache_lookup_helper (block_sector_t sector)
 {
   ASSERT ((int)sector != -1);
   int i;
+
+  /* scan the buffer cache and CACHESIZE */
   for (i = 0; i < CACHESIZE; i++)
   {
     if (buffer_cache[i].sector == sector)
@@ -123,14 +137,17 @@ cache_lookup_helper (block_sector_t sector)
   return NULL;
 }
 
+/* */
 struct cache_block *
 cache_lookup_block (block_sector_t sector)
 {
   ASSERT ((int)sector != -1);
   
+  /* buffer_cache_lock is the cache lock for the whole buffer cache */
   lock_acquire (&buffer_cache_lock);
   struct cache_block *return_value = cache_lookup_helper (sector);
   
+  /* cache found */
   if (return_value != NULL)
   {
     return_value->next_sector = -1; 
@@ -138,25 +155,23 @@ cache_lookup_block (block_sector_t sector)
     return return_value;
   }
 
-  int i;
-  for (i = 0; i < CACHESIZE; i++)
-  {
-    if (buffer_cache[i].next_sector == sector)
-    {
-      lock_release (&buffer_cache_lock);
-      return &buffer_cache[i];
-    }
-  }
- 
+  /* cache not found
+   *
+   * call next available block()
+   * if it returns valid sector, return the sector
+   * if it returns NULL, it means currently cannot find block,
+   * conditional wait.
+   */ 
   while((return_value = next_available_block ()) == NULL)
     cond_wait (&buffer_available, &buffer_cache_lock);
   return_value->next_sector = sector; 
+
   lock_release (&buffer_cache_lock);
   return return_value;
 
 }
 
-
+/* LRU to get next block */
 struct cache_block *
 next_available_block (void)
 {
@@ -174,6 +189,10 @@ next_available_block (void)
   int i;
   for (i = 0; i < CACHESIZE; i++)
   {
+    /* cannot kick the IO buffer cache,
+     * if all buffer cache are marked as IO, we will return NULL
+     * which will be a condition wait. 
+     */
     if (buffer_cache[i].io == true)
       continue;
 
@@ -181,9 +200,12 @@ next_available_block (void)
       return &buffer_cache[i];
     else
     {
+      /* record the next least recent used */
       if (next_least_recent == -1 
        || buffer_cache[i].time < buffer_cache[next_least_recent].time)
         next_least_recent = i;
+
+      /* check if there are no reading and writing on the buffer cache */
       if (buffer_cache[i].writers == 0 && buffer_cache[i].readers == 0)
       {
         if (next_no_request == -1 
@@ -199,6 +221,19 @@ next_available_block (void)
     }
   }
   
+  /*
+   * (1) if we found a block that is clean and no request,
+            return that block
+     (2) else if there is a block with no request, but it is dirty
+            return that block
+     (3) else if there is the least recent used block
+            return that block
+     (4) else 
+            return NULL. it means that all the buffer cache are marked as IO
+            and the caller will be on conditional wait.
+
+   */
+
   if (next_clean_no_request != -1)
     return &buffer_cache[next_clean_no_request];
   if (next_no_request != -1)
@@ -219,20 +254,25 @@ cache_get_block (block_sector_t sector)
 
   lock_acquire (&block->cache_lock);
   
+  /* conditional wait if there are read/write on the buffer cache*/
   while (block->writers != 0 || block->readers != 0)
     cond_wait (&block->cache_available, &block->cache_lock);
   
+  /* write to disk if the data is dirty */
   block->io = true;
   if (block->dirty)
   {
     block_write (fs_device, block->sector, block->data);
     block->dirty = false;
   }
+
+  /* read block from disk, 
+     and then update the block information*/
   block_read (fs_device, sector, block->data);
   block->sector = sector;
   block->next_sector = -1;  
   block->dirty = false;
-  block->time =  timer_ticks ();
+  block->time = timer_ticks ();
   block->readers = 0;
   block->writers = 0;
   
@@ -250,7 +290,7 @@ cache_get_block (block_sector_t sector)
 
 void cache_put_block (struct cache_block *block)
 {
-  if (!block->dirty)
+  if (!block || !block->dirty)
     return;
 
   block->io = true;
@@ -264,6 +304,7 @@ void cache_put_block (struct cache_block *block)
   lock_release (&buffer_cache_lock);
 }
 
+/* helper function */
 void
 cache_put_block_all (void)
 {
@@ -272,6 +313,7 @@ cache_put_block_all (void)
     cache_put_block (&buffer_cache[i]);
 }
 
+/* put all block in background */
 void
 cache_put_block_all_background (void)
 {
@@ -280,13 +322,13 @@ cache_put_block_all_background (void)
     if (filesys_finished)
       break;
     
-    int i;
-    for (i = 0; i < CACHESIZE; i++)
-      cache_put_block (&buffer_cache[i]);
+    cache_put_block_all();
     timer_msleep (30 * 1000);
   }
 }
 
+
+/* read ahead, and push */
 void
 cache_readahead (block_sector_t sector)
 {
@@ -301,6 +343,7 @@ cache_readahead (block_sector_t sector)
   return;
 }
 
+
 void
 cache_get_block_all_background (void)
 {
@@ -308,7 +351,10 @@ cache_get_block_all_background (void)
   {
     if (filesys_finished)
       break;
+
+    /* read ahead the block */
     lock_acquire (&readahead_lock);
+
     while (list_empty (&readahead_list))
       cond_wait (&readahead_list_not_empty, &readahead_lock);
     
@@ -321,6 +367,7 @@ cache_get_block_all_background (void)
     lock_release (&readahead_lock);
   }
   
+  /* free the read ahead list*/
   lock_acquire (&readahead_lock);
   while (!list_empty (&readahead_list))
   {

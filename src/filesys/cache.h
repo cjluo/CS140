@@ -31,8 +31,7 @@ struct cache_block
   uint32_t writers;
   
   void *data;
-  
-  struct hash_elem elem;
+
 };
 
 void cache_init (void);

@@ -53,11 +53,11 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    int extending_sector;
+    int extending_sector;               /* largest sector extended*/
     struct inode_disk data;             /* Inode content. */
-    struct lock extend_lock;
-    struct lock eof_lock;
-    struct lock length_lock;
+    struct lock extend_lock;            /* sparse file before EOF */
+    struct lock eof_lock;               /* file extending after EOF */
+    struct lock length_lock;            /* read/write inode length */
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -69,16 +69,17 @@ byte_to_sector (const struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
   int sector_pos = pos / BLOCK_SECTOR_SIZE;
+
+  /* direct index */
   if (sector_pos < DIRECT_SIZE) {
     return inode->data.sector_direct[sector_pos];
 
   }
   else if (sector_pos < DIRECT_SIZE + INDIRECT_SIZE)
-  {
+  {  
+    /* indirect index */
     if ((int)inode->data.sector_indirect == -1)
-    {
       return -1;
-    }
     
     block_sector_t level;    
     cache_read_block (inode->data.sector_indirect, &level, 
@@ -89,10 +90,10 @@ byte_to_sector (const struct inode *inode, off_t pos)
   else if (sector_pos < DIRECT_SIZE + INDIRECT_SIZE 
            + INDIRECT_SIZE * INDIRECT_SIZE)
   {  
+    /* double indirect index */
     if ((int)inode->data.sector_double_indirect == -1)
-    {
       return -1;
-    }        
+      
     block_sector_t level1;
     int level1_index = (sector_pos - DIRECT_SIZE - INDIRECT_SIZE) 
                        / INDIRECT_SIZE;
@@ -100,9 +101,7 @@ byte_to_sector (const struct inode *inode, off_t pos)
     cache_read_block (inode->data.sector_double_indirect, &level1, 
                       SECTOR_INDEX_SIZE, level1_index * SECTOR_INDEX_SIZE);
     if ((int)level1 == -1)
-    {
       return -1;
-    }     
 
     block_sector_t level2;
     int level2_index = (sector_pos - DIRECT_SIZE - INDIRECT_SIZE) 
@@ -154,6 +153,7 @@ inode_create (block_sector_t sector, off_t length, enum inode_type type)
     disk_inode->magic = INODE_MAGIC;
     disk_inode->type = type;
 
+    /* create the inode disk, and write it to disk*/ 
     int i;
     for (i = 0; i <= sectors && i < DIRECT_SIZE; i++)
     {
@@ -187,6 +187,7 @@ inode_finish (void)
     inode = list_entry (e, struct inode, elem);
     inode_close (inode);
   }
+
 }
 
 
@@ -313,9 +314,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   while (size > 0) 
     {
       /* Disk sector to read, starting byte offset within sector. */
-      // printf ("## byte_to_sector1 %d \n", offset);
       int sector_idx = byte_to_sector (inode, offset);
-      // printf ("## byte_to_sector2 %d\n", sector_idx);
 
       if (sector_idx == -1)
       {
@@ -331,10 +330,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
           lock_release (&inode->extend_lock);     
         }
         else /* read eof return 0 */
-        {
           return 0;
-        }
-   
       }
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
@@ -406,7 +402,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
           if (sectors > inode->extending_sector) {
             return_value = inode_extend (inode, offset);
             if (return_value >0)
-              inode->extending_sector = sectors;
+              inode->extending_sector = sectors; 
           }
           lock_release (&inode->eof_lock);     
         }
@@ -420,13 +416,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs; 
       ASSERT (sector_left >= 0);
 
       /* Number of bytes to actually write into this sector. */
       int chunk_size = size < sector_left ? size : sector_left;
-
       if (chunk_size == 0)
         break;
 
@@ -450,6 +444,11 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   return bytes_written;  
 }
 
+/* extend inode
+ * it will be called in two cases
+ * (1) before the eof: sparse file.
+ * (2) after the eof,  file extending.
+ */
 static int 
 inode_extend (struct inode *inode, off_t offset)
 {
@@ -482,6 +481,9 @@ inode_extend (struct inode *inode, off_t offset)
   return -1;
 }
 
+/* create indirect sectors.
+ * it will also be called by inode_create_double_indirect().
+ */
 static int 
 inode_create_indirect (block_sector_t *sector_indirect, size_t sectors)
 {
@@ -494,6 +496,7 @@ inode_create_indirect (block_sector_t *sector_indirect, size_t sectors)
 
   if ((int)*sector_indirect == -1)
   {
+    /* if the indirect block is not created, we will create and init */    
     if (free_map_allocate (1, sector_indirect))
     {
       block_sector_t indirect[INDIRECT_SIZE];
@@ -516,11 +519,15 @@ inode_create_indirect (block_sector_t *sector_indirect, size_t sectors)
   return -1;
 }
 
+/* create double indirect sectors.
+ * it will call inode_create_indirect().
+ */
 static int 
 inode_create_double_indirect (block_sector_t *sector_double_indirect, size_t sectors)
 {
   if ((int)*sector_double_indirect == -1)
   {
+    /* if the indirect block is not created, we will create and init */    
     if (free_map_allocate (1, sector_double_indirect))
     {
       block_sector_t indirect[INDIRECT_SIZE];
@@ -539,6 +546,7 @@ inode_create_double_indirect (block_sector_t *sector_double_indirect, size_t sec
                     SECTOR_INDEX_SIZE, 
                     sectors_indirect * SECTOR_INDEX_SIZE);
                       
+  /* create indirect index, and write the block */                    
   int return_value = inode_create_indirect (&sector_indirect,
                                             sectors % INDIRECT_SIZE);
   cache_write_block (*sector_double_indirect,

@@ -282,6 +282,7 @@ dir_ls (struct dir *dir)
     }
 }
 
+
 struct dir *
 dir_parse (const char *name, char **file_name)
 {
@@ -347,6 +348,7 @@ dir_parse (const char *name, char **file_name)
   return dir;
 }
 
+/* create directory for "." and ".." */
 bool
 dir_create_dot (const char *name)
 {
