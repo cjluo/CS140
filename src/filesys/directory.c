@@ -29,7 +29,7 @@ struct dir *
 dir_open (struct inode *inode) 
 { 
   struct dir *dir = calloc (1, sizeof *dir);
-  if (inode != NULL && dir != NULL && inode_type (file->inode) == DIR)
+  if (inode != NULL && dir != NULL && inode_type (inode) == DIR)
     {
       dir->inode = inode;
       dir->pos = 0;
