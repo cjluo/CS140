@@ -297,9 +297,7 @@ inode_close (struct inode *inode)
 void
 inode_remove (struct inode *inode) 
 {
-  // printf ("remove1 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
   inode->removed = true;
-  // printf ("remove2 inode %x removed %s\n", inode, inode->removed ? "YES": "NO");
 }
 
 /* Reads SIZE bytes from INODE into BUFFER, starting at position OFFSET.
@@ -379,7 +377,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     {
       /* Sector to write, starting byte offset within sector. */
       int sector_idx = byte_to_sector (inode, offset);
-      // printf ("## byte_to_sector3 %d\n", sector_idx);
 
       if (sector_idx == -1)
       {
