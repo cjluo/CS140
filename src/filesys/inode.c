@@ -53,6 +53,7 @@ struct inode
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+    int extending_sector;
     struct inode_disk data;             /* Inode content. */
     struct lock extend_lock;
     struct lock eof_lock;
@@ -221,6 +222,7 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  inode->extending_sector = -1;
   lock_init (&inode->extend_lock);
   lock_init (&inode->eof_lock);
   lock_init (&inode->length_lock);
@@ -389,7 +391,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
         int inode_len = inode_length (inode);
         lock_release (&inode->length_lock);
 
-        int return_value = 0;
+        int return_value = -1;
         /* write unallocated sectors should fill with zeros*/
         if (offset <= inode_len)
         {
@@ -397,10 +399,15 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
           return_value = inode_extend (inode, offset);
           lock_release (&inode->extend_lock);     
         }
-        else /* write eof  */
+        else /* write at EOF  */
         {
           lock_acquire (&inode->eof_lock);      
-          return_value = inode_extend (inode, offset);
+          int sectors = offset / BLOCK_SECTOR_SIZE;
+          if (sectors > inode->extending_sector) {
+            return_value = inode_extend (inode, offset);
+            if (return_value >0)
+              inode->extending_sector = sectors;
+          }
           lock_release (&inode->eof_lock);     
         }
 
