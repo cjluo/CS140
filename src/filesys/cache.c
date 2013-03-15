@@ -16,7 +16,7 @@ static struct lock readahead_lock;   /* Read ahead lock to protect the queue */
 static struct lock buffer_cache_lock;        /* buffer cache lock to protect */
                                              /* the block header */
 static struct condition readahead_list_not_empty;    /* read ahead not empty */
-static struct condition buffer_available;             /* read ahead not empty */
+static struct condition buffer_available;            /* read ahead not empty */
 static struct cache_block *cache_lookup_helper (block_sector_t);
 
 struct readahead_block             /* read ahead block frame */
