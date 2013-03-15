@@ -16,6 +16,7 @@ static struct lock readahead_lock;   /* Read ahead lock to protect the queue */
 static struct lock buffer_cache_lock;        /* buffer cache lock to protect */
                                              /* the block header */
 static struct condition readahead_list_not_empty;    /* read ahead not empty */
+static struct condition buffer_available;             /* read ahead not empty */
 static struct cache_block *cache_lookup_helper (block_sector_t);
 
 struct readahead_block             /* read ahead block frame */
@@ -50,6 +51,7 @@ cache_init (void)
   lock_init (&readahead_lock);
   lock_init (&buffer_cache_lock);  
   cond_init (&readahead_list_not_empty);
+  cond_init (&buffer_available);
 }
 
 void
@@ -146,7 +148,8 @@ cache_lookup_block (block_sector_t sector)
     }
   }
  
-  return_value = next_available_block ();
+  while((return_value = next_available_block ()) == NULL)
+    cond_wait (&buffer_available, &buffer_cache_lock);
   return_value->next_sector = sector; 
   lock_release (&buffer_cache_lock);
   return return_value;
@@ -203,7 +206,7 @@ next_available_block (void)
   if (next_least_recent != -1)
     return &buffer_cache[next_least_recent];
 
-  PANIC ("All are doing IO");
+  return NULL;
 }
 
 struct cache_block *
@@ -226,9 +229,6 @@ cache_get_block (block_sector_t sector)
     block->dirty = false;
   }
   block_read (fs_device, sector, block->data);
-  cond_broadcast (&block->cache_available, &block->cache_lock);
-  
-  
   block->sector = sector;
   block->next_sector = -1;  
   block->dirty = false;
@@ -237,25 +237,31 @@ cache_get_block (block_sector_t sector)
   block->writers = 0;
   
   block->io = false;
+  cond_broadcast (&block->cache_available, &block->cache_lock);
   lock_release (&block->cache_lock);
+  
+  /* signal the IO finished for next_available block */
+  lock_acquire (&buffer_cache_lock);
+  cond_broadcast (&buffer_available, &buffer_cache_lock);
+  lock_release (&buffer_cache_lock);
+
   return block;
 }
 
 void cache_put_block (struct cache_block *block)
 {
-  // lock_acquire (&block->cache_lock);
-  // while (block->writers != 0 || block->readers != 0)
-  //   cond_wait (&block->cache_available, &block->cache_lock);
-
   if (!block->dirty)
     return;
 
-  // block->io = true;
+  block->io = true;
   block_write (fs_device, block->sector, block->data);
   block->dirty = false;  
-  // block->io = false;
-  // cond_broadcast (&block->cache_available, &block->cache_lock);
-  // lock_release (&block->cache_lock);
+  block->io = false;
+
+  /* signal the IO finished for next_available block */
+  lock_acquire (&buffer_cache_lock);
+  cond_broadcast (&buffer_available, &buffer_cache_lock);
+  lock_release (&buffer_cache_lock);
 }
 
 void
@@ -309,7 +315,6 @@ cache_get_block_all_background (void)
     struct list_elem *e = list_pop_front (&readahead_list);
     struct readahead_block *b = list_entry (e, struct readahead_block, elem);
     
-    /* double check this function */
     cache_get_block (b->sector);
     
     free (b);

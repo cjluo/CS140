@@ -339,7 +339,6 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       if (chunk_size <= 0)
         break;
 
-      // printf ("## inode_read_at %d\n", sector_idx);
       cache_read_block (sector_idx, buffer + bytes_read,
                         chunk_size, sector_ofs);
       
@@ -392,7 +391,6 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
 
       /* Bytes left in inode, bytes left in sector, lesser of the two. */
-
 
       int sector_left = BLOCK_SECTOR_SIZE - sector_ofs; 
       ASSERT (sector_left >= 0);
@@ -452,6 +450,7 @@ inode_extend (struct inode *inode, off_t offset)
   if (sectors >= 0)
     return inode_create_double_indirect (&disk_inode->sector_double_indirect,
                                          sectors);
+  return -1;
 }
 
 static int 

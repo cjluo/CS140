@@ -93,6 +93,13 @@ filesys_open (const char *name)
     return NULL;
   }
   
+  if (strcmp(file_name, "..") == 0)
+  {
+    dir_close (dir);
+    free (file_name);
+    return NULL;
+  }
+  
   struct inode *inode = NULL;
 
   dir_lookup (dir, file_name, &inode);
